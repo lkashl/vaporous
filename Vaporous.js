@@ -46,13 +46,13 @@ class Vaporous {
         this.checkpoints = {}
     }
 
-    method(operation, name, method) {
+    method(operation, name, options) {
         const operations = {
             create: () => {
-                this.savedMethods[name] = method
+                this.savedMethods[name] = options
             },
             retrieve: () => {
-                this.savedMethods[name](this)
+                this.savedMethods[name](this, options)
             },
             delete: () => {
                 delete this.savedMethods[name]
@@ -303,14 +303,15 @@ class Vaporous {
             if (by.length !== 0) ({ start, byKey } = backwardIterate(event, i, by, start))
 
             const eventRange = this.events.slice(start, i + 1)
-            Object.assign(event, this._stats(args, eventRange).map[byKey])
+            const embed = this._stats(args, eventRange).map[byKey]
+            Object.assign(event, embed)
         })
 
         return this;
     }
 
-    delta(field, remapField) {
-        this.streamstats(new Aggregation(field, 'range', remapField), new Window(2))
+    delta(field, remapField, ...bys) {
+        this.streamstats(new Aggregation(field, 'range', remapField), new Window(2), ...bys)
         return this;
     }
 
@@ -327,7 +328,7 @@ class Vaporous {
         return this;
     }
 
-    build(name, type, { tab = 'Default', columns = 2 }) {
+    build(name, type, { tab = 'Default', columns = 2 } = {}) {
 
         const visualisationOptions = { tab, columns }
 
@@ -345,7 +346,7 @@ class Vaporous {
     checkpoint(operation, name) {
 
         const operations = {
-            create: () => this.checkpoints[name] = this.events,
+            create: () => this.checkpoints[name] = structuredClone(this.events),
             retrieve: () => this.events = this.checkpoints[name],
             delete: () => delete this.checkpoints[name]
         }
@@ -371,7 +372,12 @@ class Vaporous {
         return this;
     }
 
-    toGraph(x, y, series, trellis, options = {}) {
+    writeFile(title) {
+        fs.writeFileSync('./' + title, JSON.stringify(this.events))
+        return this;
+    }
+
+    toGraph(x, y, series, trellis = false, options = {}) {
 
         if (!(y instanceof Array)) y = [y]
         if (options.y2 instanceof RegExp) options.y2 = options.y2.toString()
@@ -385,7 +391,7 @@ class Vaporous {
             new By(x), trellis ? new By(trellis) : null
         )
 
-        const trellisMap = {}
+        const trellisMap = {}, columnDefinitions = {}
 
         this.table(event => {
             const obj = {
@@ -400,8 +406,18 @@ class Vaporous {
 
             if (trellis) {
                 const tval = event.trellis[0]
-                if (!trellisMap[tval]) trellisMap[tval] = []
+                if (!trellisMap[tval]) {
+                    trellisMap[tval] = []
+                    columnDefinitions[tval] = {}
+                }
                 trellisMap[tval].push(obj)
+                Object.keys(obj).forEach(key => {
+                    columnDefinitions[tval][key] = true
+                })
+            } else {
+                Object.keys(obj).forEach(key => {
+                    columnDefinitions[key] = true;
+                })
             }
 
             return obj
@@ -411,7 +427,18 @@ class Vaporous {
         if (trellis) {
             graphFlags.trellis = true;
             graphFlags.trellisName = Object.keys(trellisMap)
+            graphFlags.columnDefinitions = Object.keys(trellisMap).map(tval => {
+                const adjColumns = ['_time']
+                Object.keys(columnDefinitions[tval]).forEach(col => (col !== '_time') ? adjColumns.push(col) : null)
+                return adjColumns
+            })
             this.events = Object.keys(trellisMap).map(tval => trellisMap[tval])
+        } else {
+            const adjColumns = ['_time']
+            Object.keys(columnDefinitions).forEach(col => (col !== '_time') ? adjColumns.push(col) : null)
+
+            this.events = [this.events]
+            graphFlags.columnDefinitions = [adjColumns]
         }
 
         Object.assign(graphFlags, options)
@@ -422,7 +449,7 @@ class Vaporous {
     render() {
         const classSafe = (name) => name.replace(/[^a-zA-Z0-9]/g, "_")
 
-        const createElement = (name, type, visualisationOptions, eventData, { trellis, y2, sortX, trellisName = "", y2Type, y1Type, stacked, y1Min, y2Min }) => {
+        const createElement = (name, type, visualisationOptions, eventData, { trellis, y2, sortX, trellisName = "", y2Type, y1Type, stacked, y1Min, y2Min, columnDefinitions }) => {
 
             if (typeof y2 === 'string') {
                 y2 = y2.split("/")
@@ -435,8 +462,9 @@ class Vaporous {
             if (classSafe(visualisationOptions.tab) !== selectedTab) return;
 
             eventData = visualisationData[eventData]
-            if (!trellis) eventData = [eventData]
-            else {
+
+            // TODO: migrate trellis functionality from here to tograph
+            if (trellis) {
                 let pairs = trellisName.map((name, i) => [name, eventData[i]]);
                 pairs = pairs.sort((a, b) => a[0].localeCompare(b[0]))
 
@@ -454,7 +482,8 @@ class Vaporous {
                 if (y2Type) axis1.type = y2Type
 
                 // Create columns
-                const columns = Object.keys(trellisData[0])
+                const columns = columnDefinitions[i]
+
                 columns.forEach((key, i) => {
                     data.addColumn(typeof trellisData[0][key], key)
 
