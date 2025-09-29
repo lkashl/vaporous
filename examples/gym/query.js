@@ -9,6 +9,7 @@ const main = async () => {
     const vaporous = await new Vaporous()
         // Load folder and files
         .fileScan(dataFolder)
+        .filter(event => event._fileInput.endsWith('.git'))
         .csvLoad(({ data }) => {
             const event = {
                 'seconds': Number.parseFloat(data.seconds),
@@ -47,19 +48,26 @@ const main = async () => {
         .eval(event => ({
             daysAgo: Math.floor((new Date() - dayjs(event._fileInput, 'YYYYMMDD')) / 86400000)
         }))
-        .output()
-        .sort('asc', 'seconds')
+        .sort('asc', 'daysAgo', 'seconds')
+        .delta('seconds', 'timeHeld', new By('daysAgo'))
         .checkpoint('create', 'mainDataSeries')
 
         // Create polling interval graph
-        .delta('seconds', 'pollingInterval')
+        .delta('seconds', 'pollingInterval', new By('daysAgo'))
         .bin('seconds', 1)
         .stats(new Aggregation('pollingInterval', 'percentile', 'pollingInterval', 95), new By('seconds'), new By('daysAgo'))
         .toGraph('seconds', 'pollingInterval', 'daysAgo')
         .build('Machine polling', 'LineChart', {
-            columns: 1,
+            columns: 2,
             tab: 'Diagnostics'
         })
+
+        // Create a second infomration density chart
+        .checkpoint('retrieve', 'mainDataSeries')
+        .bin('seconds', 1)
+        .stats(new Aggregation('seconds', 'count', 'count'), new By('daysAgo'), new By('seconds'))
+        .toGraph('seconds', 'count', 'daysAgo')
+        .build('Second test', 'LineChart', { columns: 2, tab: "Diagnostics" })
 
         // Create temperature graph
         .checkpoint('retrieve', 'mainDataSeries')
@@ -74,38 +82,71 @@ const main = async () => {
             tab: 'Diagnostics'
         })
 
-        .bin('seconds', 1)
-        .stats(new Aggregation('seconds', 'count', 'count'), new By('daysAgo'), new By('seconds'))
-        .toGraph('seconds', 'count', 'daysAgo')
-        .writeFile('test1')
-        .build('Second test', 'LineChart', { columns: 1 })
-
-
-        .checkpoint('retrieve', 'mainDataSeries')
         .method('create', 'aggregateKG', (vaporous, { field }) => {
             vaporous
-                .sort('asc', 'daysAgo', 'seconds')
-                .delta('seconds', 'timeHeld', new By('daysAgo'))
+                .checkpoint('retrieve', 'mainDataSeries')
                 .bin(field + '_kgf', 1)
                 .sort('dsc', 'daysAgo', field + "_kgf")
                 .streamstats(
-                    new Aggregation('timeHeld', 'sum', 'cumTimeHeld'),
+                    new Aggregation('timeHeld', 'sum', 'timeHeld'),
                     new By('daysAgo'),
                 )
                 .filter(event => event[field + '_kgf'] > 30)
-                .toGraph(field + '_kgf', 'cumTimeHeld', 'daysAgo')
-                .output()
-                .build('Cumulative weight held', 'LineChart', {
-                    tab: 'Cumulative weight',
-                    columns: 1
+                .toGraph(field + '_kgf', 'timeHeld', 'daysAgo')
+                .build('Cumulative time held at weight - ' + field.toUpperCase(), 'LineChart', {
+                    tab: 'Cumulative',
+                    columns: 2
                 })
         })
         .method('retrieve', 'aggregateKG', { field: 'right' })
+        .method('retrieve', 'aggregateKG', { field: 'left' })
+
+        // Duration weight held for
+        .method('create', 'weightHeld', (vaporous, { field }) => {
+            vaporous
+                .checkpoint('retrieve', 'mainDataSeries')
+                .bin(field + '_kgf', 2)
+                .stats(new Aggregation('timeHeld', 'sum', 'timeHeld'), new By('daysAgo'), new By(field + '_kgf'))
+                .filter(event => event[field + '_kgf'] > 30)
+                .toGraph(field + '_kgf', 'timeHeld', 'daysAgo')
+                .build('Time weight held - ' + field.toUpperCase(), 'AreaChart', {
+                    tab: 'Instant',
+                    columns: 2
+                })
+        })
+        .method('retrieve', 'weightHeld', { field: 'right' })
+        .method('retrieve', 'weightHeld', { field: 'left' })
+
+        // Weight over duration
+        .method('create', 'weightByTime', (vaporous, { field }) => {
+            vaporous
+                .checkpoint('retrieve', 'mainDataSeries')
+                .stats(new Aggregation(field + '_kgf', 'max', field + '_kgf'), new By('seconds'), new By('daysAgo'))
+                .toGraph('seconds', field + '_kgf', 'daysAgo')
+                .build('Power over time - ' + field.toUpperCase(), 'LineChart', {
+                    tab: 'Instant',
+                    columns: 2
+                })
+        })
+        .method('retrieve', 'weightByTime', { field: 'right' })
+        .method('retrieve', 'weightByTime', { field: 'left' })
+
+        // Weight by phase
+        .method('create', 'weightByPhase', (vaporous, { field }) => {
+            vaporous
+                .checkpoint('retrieve', 'mainDataSeries')
+                .stats(new Aggregation(field + '_kgf', 'max', field + '_kgf'), new By('phase'), new By('daysAgo'))
+                .toGraph('phase', field + '_kgf', 'daysAgo')
+                .build('Power over rep - ' + field.toUpperCase(), 'LineChart', {
+                    tab: 'Instant',
+                    columns: 2
+                })
+        })
+        .method('retrieve', 'weightByPhase', { field: 'right' })
+        .method('retrieve', 'weightByPhase', { field: 'left' })
+
         .render()
+
 }
 
 main()
-
-
-
-//TODO: Stream modifying functions - eventstats, streamstats and delta need to enforce a check for variable uniqueness, otherwis ethey will backwards permute a variable that is arleady in use 

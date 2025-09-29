@@ -181,8 +181,15 @@ class Vaporous {
         return this;
     }
 
-    output() {
-        console.log(this.events)
+    output(...args) {
+        if (args.length) {
+            console.log(this.events.map(event => {
+                return args.map(item => event[item])
+            }))
+        } else {
+            console.log(this.events)
+        }
+
         return this;
     }
 
@@ -304,7 +311,17 @@ class Vaporous {
 
             const eventRange = this.events.slice(start, i + 1)
             const embed = this._stats(args, eventRange).map[byKey]
-            Object.assign(event, embed)
+            Object.assign(event, {
+                _streamstats: embed
+            })
+        })
+
+        // We need to assign to a separate streamstats object to avoid collusions
+        // As streamstats iteratively updates the data but rlies on previous samples
+        // Modifying data in place corrupts the results of the query
+        this.events.forEach(event => {
+            Object.assign(event, event._streamstats)
+            delete event._streamstats
         })
 
         return this;
@@ -338,7 +355,10 @@ class Vaporous {
         if (lastData !== data) this.visualisationData.push(data)
         this.visualisations.push([name, type, visualisationOptions, this.visualisationData.length - 1, this.graphFlags[this.graphFlags.length - 1]])
 
-        if (visualisationOptions.tab && !this.tabs.includes(visualisationOptions.tab)) this.tabs.push(visualisationOptions.tab)
+        if (visualisationOptions.tab && !this.tabs.includes(visualisationOptions.tab)) {
+            this.tabs.push(visualisationOptions.tab)
+            this.tabs = this.tabs.sort((a, b) => a.localeCompare(b))
+        }
 
         return this;
     }
@@ -347,7 +367,7 @@ class Vaporous {
 
         const operations = {
             create: () => this.checkpoints[name] = structuredClone(this.events),
-            retrieve: () => this.events = this.checkpoints[name],
+            retrieve: () => this.events = structuredClone(this.checkpoints[name]),
             delete: () => delete this.checkpoints[name]
         }
 
@@ -394,9 +414,12 @@ class Vaporous {
         const trellisMap = {}, columnDefinitions = {}
 
         this.table(event => {
+            const _time = event[x]
+            if (_time === null || _time === undefined) throw new Error(`To graph operation with params ${x}, ${y.join(',')} looks corrupt. x value resolves to null - the graph will not render`)
             const obj = {
-                _time: event[x]
+                _time
             }
+
             event[series].forEach((series, i) => {
                 y.forEach(item => {
                     const name = y.length === 1 ? series : `${series}_${item}`
@@ -485,7 +508,9 @@ class Vaporous {
                 const columns = columnDefinitions[i]
 
                 columns.forEach((key, i) => {
-                    data.addColumn(typeof trellisData[0][key], key)
+                    // TODO: we might have to iterate the dataseries to find this information - most likely update the column definition references 
+                    const colType = typeof trellisData[0][key]
+                    data.addColumn(colType === 'undefined' ? "number" : colType, key)
 
                     if (y2 && i !== 0) {
                         let match = false;
@@ -536,7 +561,8 @@ class Vaporous {
                         viewWindow: {
                             min: y1Min
                         }
-                    }
+                    },
+                    pointSize: type === 'ScatterChart' ? 2 : undefined
                 })
             })
         }

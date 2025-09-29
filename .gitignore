@@ -1,7 +1,7 @@
-testData
 node_modules
 .vscode
-*.html
+vaporous_generation.html
 *.tmp
 *.jsonStream
 *.csv
+*.disabled
