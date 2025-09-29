@@ -469,7 +469,7 @@ class Vaporous {
         return this;
     }
 
-    render() {
+    render(location = './Vaporous_generation.html') {
         const classSafe = (name) => name.replace(/[^a-zA-Z0-9]/g, "_")
 
         const createElement = (name, type, visualisationOptions, eventData, { trellis, y2, sortX, trellisName = "", y2Type, y1Type, stacked, y1Min, y2Min, columnDefinitions }) => {
@@ -567,7 +567,7 @@ class Vaporous {
             })
         }
 
-        const filePath = './Vaporous_generation.html'
+        const filePath = location
         fs.writeFileSync(filePath, `
 <html>
         <head>

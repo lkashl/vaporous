@@ -88,7 +88,7 @@ const main = async () => {
             columns: 3
         })
 
-        .render()
+        .render('./temp_sensors.html')
 }
 
 main()
