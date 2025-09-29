@@ -6,7 +6,13 @@ The tool is still in its early phases of development and is missing quality of l
 
 
 ## Examples
-You can find example queries [via git in the examples folder](https://github.com/lkashl/vaporous/tree/main/examples). 
+You can find example queries [via git in the examples folder](https://github.com/lkashl/vaporous/tree/main/examples)
+
+Interactive previews are available here:
+
+- [Virtualised temperature sensor data](https://lkashl.github.io/vaporous/pages/temp_sensors.html)
+- [CSV delimited virtruvian data](https://lkashl.github.io/vaporous/pages/gym.html)
+
 
 ## TODO List
 - Support web page embedded Vaporous so clients can use browser folder storage as file input
