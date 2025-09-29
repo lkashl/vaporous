@@ -59,7 +59,7 @@ const main = async () => {
         .toGraph('seconds', 'pollingInterval', 'daysAgo')
         .build('Machine polling', 'LineChart', {
             columns: 2,
-            tab: 'Diagnostics'
+            tab: 'Machine Diagnostics'
         })
 
         // Create a second infomration density chart
@@ -67,7 +67,7 @@ const main = async () => {
         .bin('seconds', 1)
         .stats(new Aggregation('seconds', 'count', 'count'), new By('daysAgo'), new By('seconds'))
         .toGraph('seconds', 'count', 'daysAgo')
-        .build('Second test', 'LineChart', { columns: 2, tab: "Diagnostics" })
+        .build('Second test', 'LineChart', { columns: 2, tab: "Machine Diagnostics" })
 
         // Create temperature graph
         .checkpoint('retrieve', 'mainDataSeries')
@@ -79,7 +79,7 @@ const main = async () => {
         .toGraph('seconds', 'maxTemp', 'daysAgo', '_mvExpand_temps')
         .build('Temp sensor - ', 'LineChart', {
             columns: 3,
-            tab: 'Diagnostics'
+            tab: "Machine Diagnostics"
         })
 
         .method('create', 'aggregateKG', (vaporous, { field }) => {
@@ -93,7 +93,7 @@ const main = async () => {
                 )
                 .filter(event => event[field + '_kgf'] > 30)
                 .toGraph(field + '_kgf', 'timeHeld', 'daysAgo')
-                .build('Cumulative time held at weight - ' + field.toUpperCase(), 'LineChart', {
+                .build('Cumulative time weight held for - ' + field.toUpperCase(), 'LineChart', {
                     tab: 'Cumulative',
                     columns: 2
                 })
@@ -145,7 +145,19 @@ const main = async () => {
         .method('retrieve', 'weightByPhase', { field: 'right' })
         .method('retrieve', 'weightByPhase', { field: 'left' })
 
-        .render()
+        .checkpoint('retrieve', 'mainDataSeries')
+        .eval(event => ({ weight: [event.left_kgf, event.right_kgf], daysAgo: event.daysAgo + " days ago" }))
+        .mvexpand('weight')
+        .eval(event => ({ arm: event._mvExpand_weight === 0 ? 'left' : 'right' }))
+        .toGraph('seconds', 'weight', 'arm', 'daysAgo')
+        .build('Arm balance instant weight over time - ', 'LineChart', {
+            tab: 'Arm balance',
+            columns: 2
+        })
+        .output()
+        // .toGraph('seconds',, null, 'daysAgo')
+
+        .render('gym.html')
 
 }
 
