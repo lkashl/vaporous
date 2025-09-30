@@ -245,11 +245,19 @@ class Vaporous {
         const arr = Object.keys(map).map(key => {
             const result = map[key]
 
+            let sortedCache = {}
             aggregations.forEach(aggregation => {
-                if (aggregation.sortable) map[key]._statsRaw[aggregation.field].sort((a, b) => a - b)
+                const outputField = aggregation.outputField
+                const reference = map[key]._statsRaw[aggregation.field]
 
-                const aggregationField = aggregation.outputField
-                result[aggregationField] = aggregation.calculate(map[key])
+                if (aggregation.sortable) {
+                    sortedCache[aggregation.field] = reference.slice().sort((a, b) => a - b)
+                    result[outputField] = aggregation.calculate(sortedCache[aggregation.field])
+                } else {
+                    result[outputField] = aggregation.calculate(reference)
+                }
+
+
             })
 
             delete map[key]._statsRaw
@@ -345,11 +353,25 @@ class Vaporous {
         return this;
     }
 
-    build(name, type, { tab = 'Default', columns = 2, y2, y1Type, y2Type, y1Stacked, y2Stacked, sortX = 'asc', xTicks = false } = {}) {
+    build(name, type, { tab = 'Default', columns = 2, y2, y1Type, y2Type, y1Stacked, y2Stacked, sortX = 'asc', xTicks = false, trellisAxis = "shared" } = {}) {
 
         const visualisationOptions = { tab, columns }
 
 
+        let bounds = {}
+
+        const isY2 = (data) => {
+            let y2Mapped = false;
+
+            if (y2 instanceof Array) {
+                y2Mapped = y2.includes(data)
+            }
+            else if (y2 instanceof RegExp) {
+                y2Mapped = y2.test(data)
+            }
+
+            return y2Mapped
+        }
         const graphData = this.events.map((trellis, i) => {
             if (type === 'Table') {
                 return trellis;
@@ -362,10 +384,21 @@ class Vaporous {
 
             const trellisName = this.graphFlags.at(-1).trellisName?.[i] || ""
             const columnDefinitions = this.graphFlags.at(-1).columnDefinitions[i]
+
             trellis.forEach(event => {
                 columnDefinitions.forEach(prop => {
                     if (!dataOptions[prop]) dataOptions[prop] = []
-                    dataOptions[prop].push(event[prop])
+                    const val = event[prop]
+                    dataOptions[prop].push(val)
+
+                    if (!bounds[prop]) bounds[prop] = {
+                        min: val,
+                        max: val
+                    }
+
+                    if (val < bounds[prop].min) bounds[prop].min = val;
+                    if (val > bounds[prop].max) bounds[prop].max = val
+
                 })
             })
 
@@ -377,13 +410,10 @@ class Vaporous {
             const data = {
                 labels: _time,
                 datasets: Object.keys(dataOptions).map(data => {
-                    let y2Mapped = false;
-
-                    if (y2 instanceof Array) { y2Mapped = y2.includes(data) }
-                    else if (y2 instanceof RegExp) { y2Mapped = y2.test(data) }
-
+                    const y2Mapped = isY2(data)
                     if (y2Mapped) y2WasMapped = y2Mapped
-                    return {
+
+                    const base = {
                         label: data,
                         yAxisID: y2Mapped ? 'y2' : undefined,
                         data: dataOptions[data],
@@ -391,6 +421,17 @@ class Vaporous {
                         // borderColor: 'red',
                         // backgroundColor: 'red',
                     }
+
+                    if (type === 'Scatter') {
+                        base.showLine = false
+                        base.pointRadius = 8
+                        base.pointStyle = 'rect'
+                    } else if (type === 'Area') {
+                        base.fill = 'origin'
+                    } else if (type === 'Line') {
+                        base.pointRadius = 0;
+                    }
+                    return base
                 })
             };
 
@@ -402,6 +443,7 @@ class Vaporous {
                     stacked: y1Stacked
                 },
                 x: {
+                    type: 'linear',
                     ticks: {
                         display: xTicks
                     }
@@ -436,6 +478,27 @@ class Vaporous {
                 }
             }
         })
+
+        if (trellisAxis === 'shared') {
+            // Do a second iteration to implement bounds
+            graphData.forEach(trellisGraph => {
+                Object.keys(bounds).forEach(bound => {
+                    let axis = isY2(bound) ? 'y2' : 'y'
+                    if (bound === '_time') axis = 'x';
+
+                    const thisAxis = trellisGraph.options.scales[axis]
+                    const { min, max } = bounds[bound]
+                    if (!thisAxis.min) {
+                        thisAxis.min = min
+                        thisAxis.max = max
+                    }
+                    if (min < thisAxis.min) thisAxis.min = min
+                    if (max > thisAxis.max) thisAxis.max = max
+
+                })
+
+            })
+        }
 
         const data = JSON.stringify(graphData)
         const lastData = this.visualisationData.at(-1)
@@ -489,7 +552,9 @@ class Vaporous {
 
         if (!(y instanceof Array)) y = [y]
 
-        const yAggregations = y.map(item => new Aggregation(item, 'list', item))
+        const yAggregations = y.map(item => [
+            new Aggregation(item, 'list', item),
+        ]).flat()
 
         this.stats(
             ...yAggregations,
@@ -511,10 +576,10 @@ class Vaporous {
                 y.forEach(item => {
                     let name;
                     if (y.length === 1) {
-                        if (!series) name = item
+                        if (series === undefined) name = item
                         else name = series
                     } else {
-                        if (series) name = `${series}_${item}`
+                        if (series !== undefined) name = `${series}_${item}`
                         else name = item
                     }
                     obj[name] = event[item][i]
