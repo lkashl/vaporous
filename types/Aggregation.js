@@ -23,8 +23,8 @@ class Aggregation {
         return [...new Set(values)];
     }
 
-    calculate(statObj) {
-        return this[this.type](statObj._statsRaw[this.field])
+    calculate(val) {
+        return this[this.type](val)
     }
 
     max(values) {

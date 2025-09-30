@@ -93,7 +93,7 @@ const main = async () => {
                 )
                 .filter(event => event[field + '_kgf'] > 30)
                 .toGraph(field + '_kgf', 'timeHeld', 'daysAgo')
-                .build('Cumulative time weight held for - ' + field.toUpperCase(), 'LineChart', {
+                .build('Cumulative time weight held for - ' + field.toUpperCase(), 'Area', {
                     tab: 'Cumulative',
                     columns: 2
                 })
@@ -109,28 +109,15 @@ const main = async () => {
                 .stats(new Aggregation('timeHeld', 'sum', 'timeHeld'), new By('daysAgo'), new By(field + '_kgf'))
                 .filter(event => event[field + '_kgf'] > 30)
                 .toGraph(field + '_kgf', 'timeHeld', 'daysAgo')
-                .build('Time weight held - ' + field.toUpperCase(), 'AreaChart', {
-                    tab: 'Instant',
-                    columns: 2
+                .build('Time weight held - ' + field.toUpperCase(), 'Scatter', {
+                    tab: 'Cumulative',
+                    columns: 2,
                 })
         })
         .method('retrieve', 'weightHeld', { field: 'right' })
         .method('retrieve', 'weightHeld', { field: 'left' })
 
-        // Weight over duration
-        .method('create', 'weightByTime', (vaporous, { field }) => {
-            vaporous
-                .checkpoint('retrieve', 'mainDataSeries')
-                .stats(new Aggregation(field + '_kgf', 'max', field + '_kgf'), new By('seconds'), new By('daysAgo'))
-                .toGraph('seconds', field + '_kgf', 'daysAgo')
-                .output()
-                .build('Power over time - ' + field.toUpperCase(), 'LineChart', {
-                    tab: 'Instant',
-                    columns: 2
-                })
-        })
-        .method('retrieve', 'weightByTime', { field: 'right' })
-        .method('retrieve', 'weightByTime', { field: 'left' })
+
 
         // Weight by phase
         .method('create', 'weightByPhase', (vaporous, { field }) => {
@@ -138,7 +125,7 @@ const main = async () => {
                 .checkpoint('retrieve', 'mainDataSeries')
                 .stats(new Aggregation(field + '_kgf', 'max', field + '_kgf'), new By('phase'), new By('daysAgo'))
                 .toGraph('phase', field + '_kgf', 'daysAgo')
-                .build('Power over rep - ' + field.toUpperCase(), 'LineChart', {
+                .build('Power at location - ' + field.toUpperCase(), 'LineChart', {
                     tab: 'Instant',
                     columns: 2
                 })
@@ -146,10 +133,12 @@ const main = async () => {
         .method('retrieve', 'weightByPhase', { field: 'right' })
         .method('retrieve', 'weightByPhase', { field: 'left' })
 
+
         .checkpoint('retrieve', 'mainDataSeries')
-        .toGraph('seconds', ['left_kgf', 'right_kgf'], null, 'daysAgo')
-        .build('Arm balance instant weight over time - ', 'LineChart', {
-            y2: /none/g,
+        .bin('seconds', 0.25)
+        .toGraph('seconds', ['left_cm', 'right_cm', 'left_kgf', 'right_kgf'], null, 'daysAgo')
+        .build('Arm position over time - ', 'Line', {
+            y2: /_cm/,
 
             y1Type: 'line',
             y2Type: 'line',
@@ -157,13 +146,29 @@ const main = async () => {
             // y1Stacked: true,
             // y2Stacked: true,
 
-            tab: 'Arm balance',
+            tab: 'Balance and power',
             columns: 2,
 
-
-            sortX: 'asc'
+            sortX: 'asc',
+            trellisAxis: 'shared'
         })
 
+        .checkpoint('retrieve', 'mainDataSeries')
+        .method('create', 'weightByLocation', (vaporous, { field }) => {
+            vaporous
+                .checkpoint('retrieve', 'mainDataSeries')
+                .filter(event => event.phase < 5)
+                .bin(field + "_cm", 2)
+                .stats(new Aggregation(field + '_kgf', 'median', field + '_kgf'), new By(field + "_cm"), new By('phase'), new By('daysAgo'))
+                .toGraph(field + "_cm", field + '_kgf', 'phase', 'daysAgo')
+                .build('Power over rep - ' + field.toUpperCase(), 'LineChart', {
+                    tab: 'Power over rep',
+                    columns: 2,
+                    sortX: 'asc'
+                })
+        })
+        .method('retrieve', 'weightByLocation', { field: 'left' })
+        .method('retrieve', 'weightByLocation', { field: 'right' })
         .render('gym.html')
 
 }
