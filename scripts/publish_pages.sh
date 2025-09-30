@@ -33,3 +33,9 @@ node examples/gym/query.js
 node examples/sensors/query.js
 
 mv gym.html temp_sensors.html pages
+
+git add pages/gym.html 
+git add pages/temp_sensors.html
+
+git commit -m "- Update pages"
+git push
