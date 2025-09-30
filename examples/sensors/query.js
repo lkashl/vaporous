@@ -72,20 +72,20 @@ const main = async () => {
             if (event.variant === 'sensorb') event.temp = event.temp - 6
         })
         .checkpoint('create', 'temperatureData')
-        .toGraph('time', ['energySpend', 'temp'], 'variant', 'deviceId', {
-            y1Type: 'bars',
-            stacked: true,
-            y2Type: 'lines',
-            y2: /.+_temp/g,
-            sortX: 'asc'
-        })
+        .toGraph('time', ['energySpend', 'temp'], 'variant', 'deviceId')
         .build('Raw Temp', 'Table', {
             tab: "Example Table",
-            columns: 3
+            columns: 3,
         })
         .build('Temp and energy - Device: ', 'LineChart', {
             tab: "Example Graphs",
-            columns: 3
+            columns: 3,
+            y1Type: 'bar',
+            y2Type: 'line',
+            y2: /.+_temp/g,
+            y1Stacked: true,
+            sortX: 'asc',
+            xTicks: false
         })
 
         .render('./temp_sensors.html')

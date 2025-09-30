@@ -345,11 +345,99 @@ class Vaporous {
         return this;
     }
 
-    build(name, type, { tab = 'Default', columns = 2 } = {}) {
+    build(name, type, { tab = 'Default', columns = 2, y2, y1Type, y2Type, y1Stacked, y2Stacked, sortX = 'asc', xTicks = false } = {}) {
 
         const visualisationOptions = { tab, columns }
 
-        const data = JSON.stringify(this.events)
+
+        const graphData = this.events.map((trellis, i) => {
+            if (type === 'Table') {
+                return trellis;
+            }
+
+            const dataOptions = {}
+
+            // For every event in this trellis restructure to chart.js
+            if (sortX) trellis = _sort(sortX, trellis, '_time')
+
+            const trellisName = this.graphFlags.at(-1).trellisName?.[i] || ""
+            const columnDefinitions = this.graphFlags.at(-1).columnDefinitions[i]
+            trellis.forEach(event => {
+                columnDefinitions.forEach(prop => {
+                    if (!dataOptions[prop]) dataOptions[prop] = []
+                    dataOptions[prop].push(event[prop])
+                })
+            })
+
+
+            const _time = dataOptions._time
+            delete dataOptions._time
+
+            let y2WasMapped = false
+            const data = {
+                labels: _time,
+                datasets: Object.keys(dataOptions).map(data => {
+                    let y2Mapped = false;
+
+                    if (y2 instanceof Array) { y2Mapped = y2.includes(data) }
+                    else if (y2 instanceof RegExp) { y2Mapped = y2.test(data) }
+
+                    if (y2Mapped) y2WasMapped = y2Mapped
+                    return {
+                        label: data,
+                        yAxisID: y2Mapped ? 'y2' : undefined,
+                        data: dataOptions[data],
+                        type: y2Mapped ? y2Type : y1Type,
+                        // borderColor: 'red',
+                        // backgroundColor: 'red',
+                    }
+                })
+            };
+
+            const scales = {
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    stacked: y1Stacked
+                },
+                x: {
+                    ticks: {
+                        display: xTicks
+                    }
+                }
+            }
+
+            if (y2WasMapped) scales.y2 = {
+                type: 'linear',
+                display: true,
+                position: 'right',
+                grid: {
+                    drawOnChartArea: false
+                },
+                stacked: y2Stacked
+            }
+
+            return {
+                type: 'line',
+                data: data,
+                options: {
+                    scales,
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                        },
+                        title: {
+                            display: true,
+                            text: name + trellisName
+                        }
+                    }
+                }
+            }
+        })
+
+        const data = JSON.stringify(graphData)
         const lastData = this.visualisationData.at(-1)
 
         if (lastData !== data) this.visualisationData.push(data)
@@ -397,10 +485,9 @@ class Vaporous {
         return this;
     }
 
-    toGraph(x, y, series, trellis = false, options = {}) {
+    toGraph(x, y, series, trellis = false) {
 
         if (!(y instanceof Array)) y = [y]
-        if (options.y2 instanceof RegExp) options.y2 = options.y2.toString()
 
         const yAggregations = y.map(item => new Aggregation(item, 'list', item))
 
@@ -422,7 +509,14 @@ class Vaporous {
 
             event[series].forEach((series, i) => {
                 y.forEach(item => {
-                    const name = y.length === 1 ? series : `${series}_${item}`
+                    let name;
+                    if (y.length === 1) {
+                        if (!series) name = item
+                        else name = series
+                    } else {
+                        if (series) name = `${series}_${item}`
+                        else name = item
+                    }
                     obj[name] = event[item][i]
                 })
             })
@@ -447,6 +541,7 @@ class Vaporous {
         })
 
         const graphFlags = {}
+
         if (trellis) {
             graphFlags.trellis = true;
             graphFlags.trellisName = Object.keys(trellisMap)
@@ -464,7 +559,6 @@ class Vaporous {
             graphFlags.columnDefinitions = [adjColumns]
         }
 
-        Object.assign(graphFlags, options)
         this.graphFlags.push(graphFlags)
         return this;
     }
@@ -472,15 +566,7 @@ class Vaporous {
     render(location = './Vaporous_generation.html') {
         const classSafe = (name) => name.replace(/[^a-zA-Z0-9]/g, "_")
 
-        const createElement = (name, type, visualisationOptions, eventData, { trellis, y2, sortX, trellisName = "", y2Type, y1Type, stacked, y1Min, y2Min, columnDefinitions }) => {
-
-            if (typeof y2 === 'string') {
-                y2 = y2.split("/")
-                const flags = y2.at(-1)
-                y2.pop()
-                const content = y2.splice(1).join("/")
-                y2 = new RegExp(content, flags)
-            }
+        const createElement = (name, type, visualisationOptions, eventData, { trellis, trellisName = "" }) => {
 
             if (classSafe(visualisationOptions.tab) !== selectedTab) return;
 
@@ -496,74 +582,24 @@ class Vaporous {
                 eventData = pairs.map(p => p[1]);
             }
 
+            const columnCount = visualisationOptions.columns || 2
+
             eventData.forEach((trellisData, i) => {
-                const data = new google.visualization.DataTable();
-
-                const series = {}, axis0 = { targetAxisIndex: 0 }, axis1 = { targetAxisIndex: 1 }
-
-                if (y1Type) axis0.type = y1Type
-                if (y2Type) axis1.type = y2Type
-
-                // Create columns
-                const columns = columnDefinitions[i]
-
-                columns.forEach((key, i) => {
-                    // TODO: we might have to iterate the dataseries to find this information - most likely update the column definition references 
-                    const colType = typeof trellisData[0][key]
-                    data.addColumn(colType === 'undefined' ? "number" : colType, key)
-
-                    if (y2 && i !== 0) {
-                        let match = false;
-                        if (y2 instanceof Array) { match = y2.includes(key) }
-                        else if (y2 instanceof RegExp) { match = y2.test(key) }
-
-                        if (match) series[i - 1] = axis1
-                    }
-
-                    if (!series[i - 1]) series[i - 1] = axis0
-                })
-
-                let rows = trellisData.map(event => {
-                    return columns.map(key => event[key])
-                })
-
-                rows = _sort(sortX, rows, 0)
-
-                data.addRows(rows);
-
-                const columnCount = visualisationOptions.columns || 2
-                const thisEntity = document.createElement('div')
-                thisEntity.className = "parentHolder"
-                thisEntity.style = `flex: 1 0 calc(${100 / columns}% - 6px); max-width: calc(${100 / columnCount}% - 6px);`
+                const parentHolder = document.createElement('div')
 
 
-                const thisGraph = document.createElement('div')
-                thisGraph.className = "graphHolder"
-                thisEntity.appendChild(thisGraph)
-                document.getElementById('content').appendChild(thisEntity)
 
-                const chartElement = new google.visualization[type](thisGraph)
+                document.getElementById('content').appendChild(parentHolder)
 
-                google.visualization.events.addListener(chartElement, 'select', (e) => {
-                    console.log(chartElement.getSelection()[1], chartElement.getSelection()[0])
-                    tokens[name] = trellisData[chartElement.getSelection()[0].row]
-                    console.log(tokens[name])
-                });
+                parentHolder.style = `flex: 0 0 calc(${100 / columnCount}% - 8px); max-width: calc(${100 / columnCount}% - 8px);`
+                if (type === 'Table') {
+                    new Tabulator(parentHolder, { data: trellisData, autoColumns: 'full', layout: "fitDataStretch", })
+                } else {
+                    const graphEntity = document.createElement('canvas')
+                    parentHolder.appendChild(graphEntity)
+                    new Chart(graphEntity, trellisData)
+                }
 
-                const title = trellis ? name + trellisName[i] : name
-
-                chartElement.draw(data, {
-                    series, showRowNumber: false, legend: { position: 'bottom' }, title, isStacked: stacked,
-                    width: document.body.scrollWidth / columnCount - (type === "LineChart" ? 12 : 24),
-                    animation: { duration: 500, startup: true },
-                    chartArea: { width: '85%', height: '75%' },
-                    vAxis: {
-                        viewWindow: {
-                            min: y1Min
-                        }
-                    },
-                    pointSize: type === 'ScatterChart' ? 2 : undefined
-                })
             })
         }
 
@@ -571,13 +607,16 @@ class Vaporous {
         fs.writeFileSync(filePath, `
 <html>
         <head>
+        <meta name="viewport" content="width=device-width, initial-scale=0.5">
             <style>
                 ${styles}
             </style>
-    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+    
+            <link href="https://unpkg.com/tabulator-tables@6.3.1/dist/css/tabulator.min.css" rel="stylesheet">
+            <script type="text/javascript" src="https://unpkg.com/tabulator-tables@6.3.1/dist/js/tabulator.min.js"></script>
+            <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
     <script type="text/javascript">
-      google.charts.load('current', {'packages':['table', 'corechart']});
-      google.charts.setOnLoadCallback(drawVis);
 
       const classSafe = ${classSafe.toString()}
 
