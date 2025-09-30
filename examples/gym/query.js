@@ -123,6 +123,7 @@ const main = async () => {
                 .checkpoint('retrieve', 'mainDataSeries')
                 .stats(new Aggregation(field + '_kgf', 'max', field + '_kgf'), new By('seconds'), new By('daysAgo'))
                 .toGraph('seconds', field + '_kgf', 'daysAgo')
+                .output()
                 .build('Power over time - ' + field.toUpperCase(), 'LineChart', {
                     tab: 'Instant',
                     columns: 2
@@ -146,16 +147,22 @@ const main = async () => {
         .method('retrieve', 'weightByPhase', { field: 'left' })
 
         .checkpoint('retrieve', 'mainDataSeries')
-        .eval(event => ({ weight: [event.left_kgf, event.right_kgf], daysAgo: event.daysAgo + " days ago" }))
-        .mvexpand('weight')
-        .eval(event => ({ arm: event._mvExpand_weight === 0 ? 'left' : 'right' }))
-        .toGraph('seconds', 'weight', 'arm', 'daysAgo')
+        .toGraph('seconds', ['left_kgf', 'right_kgf'], null, 'daysAgo')
         .build('Arm balance instant weight over time - ', 'LineChart', {
+            y2: /none/g,
+
+            y1Type: 'line',
+            y2Type: 'line',
+
+            // y1Stacked: true,
+            // y2Stacked: true,
+
             tab: 'Arm balance',
-            columns: 2
+            columns: 2,
+
+
+            sortX: 'asc'
         })
-        .output()
-        // .toGraph('seconds',, null, 'daysAgo')
 
         .render('gym.html')
 
