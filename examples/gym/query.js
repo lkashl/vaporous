@@ -6,7 +6,11 @@ const dataFolder = __dirname + '/exampleData'
 const main = async () => {
 
     console.log('Starting')
-    const vaporous = await new Vaporous()
+    const vaporous = await new Vaporous({
+        loggers: {
+            perf: (level, event) => console[level](event)
+        }
+    })
         // Load folder and files
         .fileScan(dataFolder)
         .filter(event => event._fileInput.endsWith('.git'))
@@ -150,7 +154,8 @@ const main = async () => {
             columns: 2,
 
             sortX: 'asc',
-            trellisAxis: 'shared'
+            trellisAxis: 'shared',
+            legend: false
         })
 
         .checkpoint('retrieve', 'mainDataSeries')

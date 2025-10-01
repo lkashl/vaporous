@@ -14,7 +14,6 @@ const styles = fs.readFileSync(__dirname + '/styles.css')
 const Papa = require('papaparse')
 
 // These globals allow us to write functions from the HTML page directly without needing to stringify
-class google { }
 const document = {}
 
 const keyFromEvent = (event, bys) => bys.map(i => event[i.bySplit]).join('|')
@@ -35,7 +34,7 @@ const _sort = (order, data, ...keys) => {
 
 class Vaporous {
 
-    constructor() {
+    constructor({ loggers } = {}) {
         this.events = [];
         this.visualisations = [];
         this.visualisationData = []
@@ -44,9 +43,50 @@ class Vaporous {
 
         this.savedMethods = {}
         this.checkpoints = {}
+
+        this.loggers = loggers
+        this.perf = null
+        this.totalTime = 0
+    }
+
+    manageEntry() {
+        if (this.loggers?.perf) {
+            const [, , method, ...origination] = new Error().stack.split('\n')
+            const invokedMethod = method.match(/Vaporous.(.+?) /)
+
+            let orig = origination.find(orig => {
+                const originator = orig.split("/").at(-1)
+                return !originator.includes("Vaporous")
+            })
+
+            orig = orig.split("/").at(-1)
+            const logLine = "(" + orig + " BEGIN " + invokedMethod[1]
+            this.loggers.perf('info', logLine)
+            this.perf = { time: new Date().valueOf(), logLine }
+        }
+    }
+
+    manageExit() {
+        if (this.loggers?.perf) {
+            let { logLine, time } = this.perf;
+            const executionTime = new Date() - time
+            this.totalTime += executionTime
+
+            const match = logLine.match(/^.*?BEGIN/);
+            const prepend = "END"
+            if (match) {
+                const toReplace = match[0]; // the matched substring
+                const spaces = " ".repeat(toReplace.length - prepend.length); // same length, all spaces
+                logLine = spaces + prepend + logLine.replace(toReplace, "");
+            }
+
+            this.loggers.perf('info', logLine + " (" + executionTime + "ms)")
+        }
+        return this
     }
 
     method(operation, name, options) {
+        if (operation != 'retrieve') this.manageEntry()
         const operations = {
             create: () => {
                 this.savedMethods[name] = options
@@ -61,70 +101,91 @@ class Vaporous {
 
 
         operations[operation]()
-        return this
-    }
-
-    filter(...args) {
-        this.events = this.events.filter(...args)
-        return this
-    }
-
-    append(entities) {
-        this.events = this.events.concat(entities)
+        if (operation !== 'retrieve') return this.manageExit()
         return this;
     }
 
+    filterIntoCheckpoint(checkpointName, funct, destroy) {
+        this.manageEntry()
+        const dataCheckpoint = this.events.filter(funct)
+        this._checkpoint('create', checkpointName, dataCheckpoint)
+        if (destroy) this.events = this.events.filter(event => !funct(event))
+        return this.manageExit()
+    }
+
+    filter(...args) {
+        this.manageEntry()
+        this.events = this.events.filter(...args)
+        return this.manageExit()
+    }
+
+    append(entities) {
+        this.manageEntry()
+        this.events = this.events.concat(entities)
+        return this.manageExit()
+    }
+
     eval(modifier) {
+        this.manageEntry()
         this.events.forEach(event => {
             const vals = modifier(event)
             if (vals) Object.assign(event, vals)
         })
-        return this;
+        return this.manageExit()
     }
 
-    table(modifier) {
+    _table(modifier) {
         this.events = this.events.map(event => {
             const vals = modifier(event)
             return vals;
         })
-        return this;
+    }
+    table(modifier) {
+        this.manageEntry()
+        this._table(modifier)
+        return this.manageExit()
     }
 
     rename(...entities) {
+        this.manageEntry()
         this.events.forEach(event => {
             entities.forEach(([from, to]) => {
                 event[to] = event[from]
                 delete event[from]
             })
         })
-        return this;
+        return this.manageExit()
     }
 
     parseTime(value, customFormat) {
+        this.manageEntry()
         this.events.forEach(event => {
             event[value] = dayjs(event[value], customFormat).valueOf()
         })
-        return this;
+        return this.manageExit()
     }
 
     bin(value, span) {
+        this.manageEntry()
         this.events.forEach(event => {
             event[value] = Math.floor(event[value] / span) * span
         })
-        return this;
+        return this.manageExit()
     }
 
     fileScan(directory) {
+        this.manageEntry()
         const items = fs.readdirSync(directory)
         this.events = items.map(item => {
             return {
                 _fileInput: path.resolve(directory, item)
             }
         })
-        return this;
+        return this.manageExit()
     }
 
     async csvLoad(parser) {
+        this.manageEntry()
         const tasks = this.events.map(obj => {
             const content = []
 
@@ -151,10 +212,11 @@ class Vaporous {
         })
 
         await Promise.all(tasks)
-        return this;
+        return this.manageExit()
     }
 
     async fileLoad(delim, parser) {
+        this.manageEntry()
         const tasks = this.events.map(obj => {
             const content = []
 
@@ -178,10 +240,11 @@ class Vaporous {
         })
 
         await Promise.all(tasks)
-        return this;
+        return this.manageExit()
     }
 
     output(...args) {
+        this.manageEntry()
         if (args.length) {
             console.log(this.events.map(event => {
                 return args.map(item => event[item])
@@ -190,10 +253,11 @@ class Vaporous {
             console.log(this.events)
         }
 
-        return this;
+        return this.manageExit()
     }
 
     flatten() {
+        this.manageEntry()
         const arraySize = this.events.reduce((acc, obj) => acc + obj._raw.length, 0)
         let flattened = new Array(arraySize)
         let i = 0
@@ -211,7 +275,7 @@ class Vaporous {
 
         })
         this.events = flattened;
-        return this;
+        return this.manageExit()
     }
 
     _stats(args, events) {
@@ -268,11 +332,13 @@ class Vaporous {
     }
 
     stats(...args) {
+        this.manageEntry()
         this.events = this._stats(args, this.events).arr
-        return this;
+        return this.manageExit()
     }
 
     eventstats(...args) {
+        this.manageEntry()
         const stats = this._stats(args, this.events)
 
         this.events.forEach(event => {
@@ -284,7 +350,7 @@ class Vaporous {
         return this
     }
 
-    streamstats(...args) {
+    _streamstats(...args) {
         const backwardIterate = (event, i, by, maxBoundary = 0) => {
             let backwardIndex = 0
             const thisKey = keyFromEvent(event, by)
@@ -332,28 +398,38 @@ class Vaporous {
             delete event._streamstats
         })
 
-        return this;
+        return this
+    }
+
+    streamstats(...args) {
+        this.manageEntry()
+        this._streamstats(...args)
+        return this.manageExit()
     }
 
     delta(field, remapField, ...bys) {
-        this.streamstats(new Aggregation(field, 'range', remapField), new Window(2), ...bys)
-        return this;
+        this.manageEntry()
+        this._streamstats(new Aggregation(field, 'range', remapField), new Window(2), ...bys)
+        return this.manageExit()
     }
 
     sort(order, ...keys) {
+        this.manageEntry()
         this.events = _sort(order, this.events, ...keys)
-        return this;
+        return this.manageExit()
     }
 
     assert(funct) {
+        this.manageEntry()
         const expect = (funct) => { if (!funct) throw new Error('Assertion failed') }
         this.events.forEach((event, i) => {
             funct(event, i, { expect })
         })
-        return this;
+        return this.manageExit()
     }
 
-    build(name, type, { tab = 'Default', columns = 2, y2, y1Type, y2Type, y1Stacked, y2Stacked, sortX = 'asc', xTicks = false, trellisAxis = "shared" } = {}) {
+    build(name, type, { tab = 'Default', columns = 2, y2, y1Type, y2Type, y1Stacked, y2Stacked, sortX = 'asc', xTicks = false, trellisAxis = "shared", legend } = {}) {
+        this.manageEntry()
 
         const visualisationOptions = { tab, columns }
 
@@ -468,6 +544,7 @@ class Vaporous {
                     responsive: true,
                     plugins: {
                         legend: {
+                            display: legend || true,
                             position: 'bottom',
                         },
                         title: {
@@ -511,22 +588,29 @@ class Vaporous {
             this.tabs = this.tabs.sort((a, b) => a.localeCompare(b))
         }
 
-        return this;
+        return this.manageExit()
     }
 
-    checkpoint(operation, name) {
+    _checkpoint(operation, name, data) {
 
         const operations = {
-            create: () => this.checkpoints[name] = structuredClone(this.events),
+            create: () => this.checkpoints[name] = structuredClone(data),
             retrieve: () => this.events = structuredClone(this.checkpoints[name]),
             delete: () => delete this.checkpoints[name]
         }
 
         operations[operation]()
-        return this;
+        return this
+    }
+
+    checkpoint(operation, name) {
+        this.manageEntry()
+        this._checkpoint(operation, name, this.events)
+        return this.manageExit()
     }
 
     mvexpand(target) {
+        this.manageEntry()
         const arr = []
         this.events.forEach(event => {
             if (!event[target]) return arr.push(event)
@@ -540,32 +624,33 @@ class Vaporous {
         })
 
         this.events = arr
-        return this;
+        return this.manageExit()
     }
 
     writeFile(title) {
+        this.manageEntry()
         fs.writeFileSync('./' + title, JSON.stringify(this.events))
-        return this;
+        return this.manageExit()
     }
 
     toGraph(x, y, series, trellis = false) {
-
+        this.manageEntry()
         if (!(y instanceof Array)) y = [y]
 
         const yAggregations = y.map(item => [
             new Aggregation(item, 'list', item),
         ]).flat()
 
-        this.stats(
+        this.events = this._stats([
             ...yAggregations,
             new Aggregation(series, 'list', series),
             new Aggregation(trellis, 'values', 'trellis'),
-            new By(x), trellis ? new By(trellis) : null
-        )
+            new By(x), trellis ? new By(trellis) : null], this.events
+        ).arr
 
         const trellisMap = {}, columnDefinitions = {}
 
-        this.table(event => {
+        this._table(event => {
             const _time = event[x]
             if (_time === null || _time === undefined) throw new Error(`To graph operation with params ${x}, ${y.join(',')} looks corrupt. x value resolves to null - the graph will not render`)
             const obj = {
@@ -625,10 +710,11 @@ class Vaporous {
         }
 
         this.graphFlags.push(graphFlags)
-        return this;
+        return this.manageExit()
     }
 
     render(location = './Vaporous_generation.html') {
+        this.manageEntry()
         const classSafe = (name) => name.replace(/[^a-zA-Z0-9]/g, "_")
 
         const createElement = (name, type, visualisationOptions, eventData, { trellis, trellisName = "" }) => {
@@ -719,8 +805,9 @@ class Vaporous {
   </body>
 </html>
         `)
-
         console.log('File ouput created ', path.resolve(filePath))
+        if (this.totalTime) console.log("File completed in " + this.totalTime)
+        return this.manageExit()
     }
 }
 
