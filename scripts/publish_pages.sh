@@ -39,3 +39,5 @@ git add pages/temp_sensors.html
 
 git commit -m "- Update pages"
 git push
+
+git checkout main
