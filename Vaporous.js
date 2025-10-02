@@ -214,7 +214,6 @@ class Vaporous {
                         }
                     },
                     complete: () => {
-                        obj._raw = content
                         resolve(this)
                     }
                 })
@@ -250,7 +249,6 @@ class Vaporous {
             })
         })
 
-        await Promise.all(tasks)
         this.events = await Promise.all(tasks)
         return this.manageExit()
     }
@@ -270,7 +268,7 @@ class Vaporous {
 
     flatten(depth = 1) {
         this.manageEntry()
-        this.events.flat(1)
+        this.events = this.events.flat(depth)
         return this.manageExit()
     }
 
