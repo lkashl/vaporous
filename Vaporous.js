@@ -105,10 +105,10 @@ class Vaporous {
         return this;
     }
 
-    filterIntoCheckpoint(checkpointName, funct, destroy) {
+    filterIntoCheckpoint(checkpointName, funct, destroy, { disableCloning }) {
         this.manageEntry()
         const dataCheckpoint = this.events.filter(funct)
-        this._checkpoint('create', checkpointName, dataCheckpoint)
+        this._checkpoint('create', checkpointName, dataCheckpoint, { disableCloning })
         if (destroy) this.events = this.events.filter(event => !funct(event))
         return this.manageExit()
     }
@@ -198,7 +198,17 @@ class Vaporous {
                     step: (row) => {
                         try {
                             const event = parser(row)
-                            if (event !== null) content.push(event)
+                            if (event !== null) {
+                                if (event instanceof Array) {
+                                    event.forEach(item => {
+                                        item._fileInput = obj._fileInput
+                                        content.push(item)
+                                    })
+                                } else {
+                                    event._fileInput = obj._fileInput
+                                    content.push(event)
+                                }
+                            }
                         } catch (err) {
                             reject(err)
                         }
@@ -211,7 +221,8 @@ class Vaporous {
             })
         })
 
-        await Promise.all(tasks)
+        const payloads = await Promise.all(tasks)
+        this.events = payloads
         return this.manageExit()
     }
 
@@ -234,12 +245,13 @@ class Vaporous {
                     })
                     .on('end', () => {
                         obj._raw = content;
-                        resolve(this)
+                        resolve(content)
                     })
             })
         })
 
         await Promise.all(tasks)
+        this.events = await Promise.all(tasks)
         return this.manageExit()
     }
 
@@ -256,25 +268,9 @@ class Vaporous {
         return this.manageExit()
     }
 
-    flatten() {
+    flatten(depth = 1) {
         this.manageEntry()
-        const arraySize = this.events.reduce((acc, obj) => acc + obj._raw.length, 0)
-        let flattened = new Array(arraySize)
-        let i = 0
-
-        this.events.forEach(obj => {
-            const raws = obj._raw
-            delete obj._raw
-
-            raws.forEach(event => {
-                flattened[i++] = {
-                    ...obj,
-                    _raw: event,
-                }
-            })
-
-        })
-        this.events = flattened;
+        this.events.flat(1)
         return this.manageExit()
     }
 
@@ -347,7 +343,7 @@ class Vaporous {
             Object.assign(event, stats.map[key])
         })
 
-        return this
+        return this.manageExit()
     }
 
     _streamstats(...args) {
@@ -591,11 +587,10 @@ class Vaporous {
         return this.manageExit()
     }
 
-    _checkpoint(operation, name, data) {
-
+    _checkpoint(operation, name, data, { disableCloning }) {
         const operations = {
-            create: () => this.checkpoints[name] = structuredClone(data),
-            retrieve: () => this.events = structuredClone(this.checkpoints[name]),
+            create: () => this.checkpoints[name] = disableCloning ? data : structuredClone(data),
+            retrieve: () => this.events = disableCloning ? this.checkpoints[name] : structuredClone(this.checkpoints[name]),
             delete: () => delete this.checkpoints[name]
         }
 
@@ -603,9 +598,9 @@ class Vaporous {
         return this
     }
 
-    checkpoint(operation, name) {
+    checkpoint(operation, name, { disableCloning }) {
         this.manageEntry()
-        this._checkpoint(operation, name, this.events)
+        this._checkpoint(operation, name, this.events, { disableCloning })
         return this.manageExit()
     }
 
@@ -636,10 +631,13 @@ class Vaporous {
     toGraph(x, y, series, trellis = false) {
         this.manageEntry()
         if (!(y instanceof Array)) y = [y]
+        if (!(x instanceof Array)) x = [x]
 
         const yAggregations = y.map(item => [
             new Aggregation(item, 'list', item),
         ]).flat()
+
+        const xBy = x.map(x => new By(x))
 
         this.events = this._stats([
             ...yAggregations,
@@ -651,11 +649,16 @@ class Vaporous {
         const trellisMap = {}, columnDefinitions = {}
 
         this._table(event => {
-            const _time = event[x]
+            const _time = event[x[0]]
+
             if (_time === null || _time === undefined) throw new Error(`To graph operation with params ${x}, ${y.join(',')} looks corrupt. x value resolves to null - the graph will not render`)
             const obj = {
                 _time
             }
+
+            x.forEach(item => {
+                obj[item] = event[item]
+            })
 
             event[series].forEach((series, i) => {
                 y.forEach(item => {
@@ -744,6 +747,9 @@ class Vaporous {
 
                 parentHolder.style = `flex: 0 0 calc(${100 / columnCount}% - 8px); max-width: calc(${100 / columnCount}% - 8px);`
                 if (type === 'Table') {
+                    trellisData.forEach(event => {
+                        delete event._time
+                    })
                     new Tabulator(parentHolder, { data: trellisData, autoColumns: 'full', layout: "fitDataStretch", })
                 } else {
                     const graphEntity = document.createElement('canvas')
