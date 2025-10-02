@@ -214,7 +214,6 @@ class Vaporous {
                         }
                     },
                     complete: () => {
-                        obj._raw = content
                         resolve(this)
                     }
                 })
