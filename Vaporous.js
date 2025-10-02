@@ -105,7 +105,7 @@ class Vaporous {
         return this;
     }
 
-    filterIntoCheckpoint(checkpointName, funct, destroy, { disableCloning }) {
+    filterIntoCheckpoint(checkpointName, funct, { disableCloning = false, destroy = true } = {}) {
         this.manageEntry()
         const dataCheckpoint = this.events.filter(funct)
         this._checkpoint('create', checkpointName, dataCheckpoint, { disableCloning })
@@ -214,6 +214,7 @@ class Vaporous {
                         }
                     },
                     complete: () => {
+                        obj._raw = content
                         resolve(this)
                     }
                 })
@@ -236,7 +237,17 @@ class Vaporous {
                     .on('data', line => {
                         try {
                             const event = parser(line)
-                            if (event !== null) content.push(event)
+                            if (!event) return;
+
+                            if (event instanceof Array) {
+                                event.forEach(item => {
+                                    item._fileInput = obj._fileInput
+                                    content.push(item)
+                                })
+                            } else {
+                                if (!event._fileInput) event._fileInput = obj._fileInput
+                                content.push(event)
+                            }
                         } catch (err) {
                             throw err;
                         }
@@ -627,6 +638,7 @@ class Vaporous {
     }
 
     toGraph(x, y, series, trellis = false) {
+
         this.manageEntry()
         if (!(y instanceof Array)) y = [y]
         if (!(x instanceof Array)) x = [x]
@@ -641,7 +653,7 @@ class Vaporous {
             ...yAggregations,
             new Aggregation(series, 'list', series),
             new Aggregation(trellis, 'values', 'trellis'),
-            new By(x), trellis ? new By(trellis) : null], this.events
+            ...xBy, trellis ? new By(trellis) : null], this.events
         ).arr
 
         const trellisMap = {}, columnDefinitions = {}
