@@ -88,7 +88,7 @@ const main = async () => {
             xTicks: false
         })
 
-        .render('./temp_sensors.html')
+        .render('./sensors.html')
 }
 
 main()

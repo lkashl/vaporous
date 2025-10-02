@@ -214,7 +214,7 @@ class Vaporous {
                         }
                     },
                     complete: () => {
-                        resolve(this)
+                        resolve(content)
                     }
                 })
             })
@@ -253,7 +253,6 @@ class Vaporous {
 
                     })
                     .on('end', () => {
-                        obj._raw = content;
                         resolve(content)
                     })
             })
@@ -452,6 +451,9 @@ class Vaporous {
 
             return y2Mapped
         }
+
+        const xPrimary = this.graphFlags.at(-1).xPrimary
+
         const graphData = this.events.map((trellis, i) => {
             if (type === 'Table') {
                 return trellis;
@@ -459,11 +461,12 @@ class Vaporous {
 
             const dataOptions = {}
 
-            // For every event in this trellis restructure to chart.js
-            if (sortX) trellis = _sort(sortX, trellis, '_time')
-
             const trellisName = this.graphFlags.at(-1).trellisName?.[i] || ""
             const columnDefinitions = this.graphFlags.at(-1).columnDefinitions[i]
+
+            // For every event in this trellis restructure to chart.js
+            if (sortX) trellis = _sort(sortX, trellis, xPrimary)
+
 
             trellis.forEach(event => {
                 columnDefinitions.forEach(prop => {
@@ -483,12 +486,12 @@ class Vaporous {
             })
 
 
-            const _time = dataOptions._time
-            delete dataOptions._time
+            const primary = dataOptions[xPrimary]
+            delete dataOptions[xPrimary]
 
             let y2WasMapped = false
             const data = {
-                labels: _time,
+                labels: primary,
                 datasets: Object.keys(dataOptions).map(data => {
                     const y2Mapped = isY2(data)
                     if (y2Mapped) y2WasMapped = y2Mapped
@@ -565,7 +568,7 @@ class Vaporous {
             graphData.forEach(trellisGraph => {
                 Object.keys(bounds).forEach(bound => {
                     let axis = isY2(bound) ? 'y2' : 'y'
-                    if (bound === '_time') axis = 'x';
+                    if (bound === xPrimary) axis = 'x';
 
                     const thisAxis = trellisGraph.options.scales[axis]
                     const { min, max } = bounds[bound]
@@ -606,7 +609,7 @@ class Vaporous {
         return this
     }
 
-    checkpoint(operation, name, { disableCloning }) {
+    checkpoint(operation, name, { disableCloning } = {}) {
         this.manageEntry()
         this._checkpoint(operation, name, this.events, { disableCloning })
         return this.manageExit()
@@ -658,11 +661,8 @@ class Vaporous {
         const trellisMap = {}, columnDefinitions = {}
 
         this._table(event => {
-            const _time = event[x[0]]
-
-            if (_time === null || _time === undefined) throw new Error(`To graph operation with params ${x}, ${y.join(',')} looks corrupt. x value resolves to null - the graph will not render`)
             const obj = {
-                _time
+                [x[0]]: event[x[0]]
             }
 
             x.forEach(item => {
@@ -702,20 +702,22 @@ class Vaporous {
             return obj
         })
 
-        const graphFlags = {}
+        const graphFlags = {
+            xPrimary: x[0]
+        }
 
         if (trellis) {
             graphFlags.trellis = true;
             graphFlags.trellisName = Object.keys(trellisMap)
             graphFlags.columnDefinitions = Object.keys(trellisMap).map(tval => {
-                const adjColumns = ['_time']
-                Object.keys(columnDefinitions[tval]).forEach(col => (col !== '_time') ? adjColumns.push(col) : null)
+                const adjColumns = [x[0]]
+                Object.keys(columnDefinitions[tval]).forEach(col => (col !== x[0]) ? adjColumns.push(col) : null)
                 return adjColumns
             })
             this.events = Object.keys(trellisMap).map(tval => trellisMap[tval])
         } else {
-            const adjColumns = ['_time']
-            Object.keys(columnDefinitions).forEach(col => (col !== '_time') ? adjColumns.push(col) : null)
+            const adjColumns = [x[0]]
+            Object.keys(columnDefinitions).forEach(col => (col !== x[0]) ? adjColumns.push(col) : null)
 
             this.events = [this.events]
             graphFlags.columnDefinitions = [adjColumns]
@@ -756,9 +758,6 @@ class Vaporous {
 
                 parentHolder.style = `flex: 0 0 calc(${100 / columnCount}% - 8px); max-width: calc(${100 / columnCount}% - 8px);`
                 if (type === 'Table') {
-                    trellisData.forEach(event => {
-                        delete event._time
-                    })
                     new Tabulator(parentHolder, { data: trellisData, autoColumns: 'full', layout: "fitDataStretch", })
                 } else {
                     const graphEntity = document.createElement('canvas')

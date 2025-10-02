@@ -42,10 +42,7 @@ const main = async () => {
 
     vaporous
         .flatten()
-        .eval(event => ({
-            ...event._raw,
-            _fileInput: event._fileInput.split('/').at(-1).split('.')[0]
-        }))
+        .eval(event => event._fileInput = event._fileInput.split('/').at(-1).split('.')[0])
         .assert((event, i, { expect }) => {
             expect(event._fileInput !== undefined)
         })
