@@ -105,10 +105,10 @@ class Vaporous {
         return this;
     }
 
-    filterIntoCheckpoint(checkpointName, funct, destroy) {
+    filterIntoCheckpoint(checkpointName, funct, { disableCloning = false, destroy = true } = {}) {
         this.manageEntry()
         const dataCheckpoint = this.events.filter(funct)
-        this._checkpoint('create', checkpointName, dataCheckpoint)
+        this._checkpoint('create', checkpointName, dataCheckpoint, { disableCloning })
         if (destroy) this.events = this.events.filter(event => !funct(event))
         return this.manageExit()
     }
@@ -198,20 +198,30 @@ class Vaporous {
                     step: (row) => {
                         try {
                             const event = parser(row)
-                            if (event !== null) content.push(event)
+                            if (event !== null) {
+                                if (event instanceof Array) {
+                                    event.forEach(item => {
+                                        item._fileInput = obj._fileInput
+                                        content.push(item)
+                                    })
+                                } else {
+                                    event._fileInput = obj._fileInput
+                                    content.push(event)
+                                }
+                            }
                         } catch (err) {
                             reject(err)
                         }
                     },
                     complete: () => {
-                        obj._raw = content
-                        resolve(this)
+                        resolve(content)
                     }
                 })
             })
         })
 
-        await Promise.all(tasks)
+        const payloads = await Promise.all(tasks)
+        this.events = payloads
         return this.manageExit()
     }
 
@@ -226,20 +236,29 @@ class Vaporous {
                     .on('data', line => {
                         try {
                             const event = parser(line)
-                            if (event !== null) content.push(event)
+                            if (!event) return;
+
+                            if (event instanceof Array) {
+                                event.forEach(item => {
+                                    item._fileInput = obj._fileInput
+                                    content.push(item)
+                                })
+                            } else {
+                                if (!event._fileInput) event._fileInput = obj._fileInput
+                                content.push(event)
+                            }
                         } catch (err) {
                             throw err;
                         }
 
                     })
                     .on('end', () => {
-                        obj._raw = content;
-                        resolve(this)
+                        resolve(content)
                     })
             })
         })
 
-        await Promise.all(tasks)
+        this.events = await Promise.all(tasks)
         return this.manageExit()
     }
 
@@ -256,25 +275,9 @@ class Vaporous {
         return this.manageExit()
     }
 
-    flatten() {
+    flatten(depth = 1) {
         this.manageEntry()
-        const arraySize = this.events.reduce((acc, obj) => acc + obj._raw.length, 0)
-        let flattened = new Array(arraySize)
-        let i = 0
-
-        this.events.forEach(obj => {
-            const raws = obj._raw
-            delete obj._raw
-
-            raws.forEach(event => {
-                flattened[i++] = {
-                    ...obj,
-                    _raw: event,
-                }
-            })
-
-        })
-        this.events = flattened;
+        this.events = this.events.flat(depth)
         return this.manageExit()
     }
 
@@ -347,7 +350,7 @@ class Vaporous {
             Object.assign(event, stats.map[key])
         })
 
-        return this
+        return this.manageExit()
     }
 
     _streamstats(...args) {
@@ -448,6 +451,9 @@ class Vaporous {
 
             return y2Mapped
         }
+
+        const xPrimary = this.graphFlags.at(-1).xPrimary
+
         const graphData = this.events.map((trellis, i) => {
             if (type === 'Table') {
                 return trellis;
@@ -455,11 +461,12 @@ class Vaporous {
 
             const dataOptions = {}
 
-            // For every event in this trellis restructure to chart.js
-            if (sortX) trellis = _sort(sortX, trellis, '_time')
-
             const trellisName = this.graphFlags.at(-1).trellisName?.[i] || ""
             const columnDefinitions = this.graphFlags.at(-1).columnDefinitions[i]
+
+            // For every event in this trellis restructure to chart.js
+            if (sortX) trellis = _sort(sortX, trellis, xPrimary)
+
 
             trellis.forEach(event => {
                 columnDefinitions.forEach(prop => {
@@ -479,12 +486,12 @@ class Vaporous {
             })
 
 
-            const _time = dataOptions._time
-            delete dataOptions._time
+            const primary = dataOptions[xPrimary]
+            delete dataOptions[xPrimary]
 
             let y2WasMapped = false
             const data = {
-                labels: _time,
+                labels: primary,
                 datasets: Object.keys(dataOptions).map(data => {
                     const y2Mapped = isY2(data)
                     if (y2Mapped) y2WasMapped = y2Mapped
@@ -561,7 +568,7 @@ class Vaporous {
             graphData.forEach(trellisGraph => {
                 Object.keys(bounds).forEach(bound => {
                     let axis = isY2(bound) ? 'y2' : 'y'
-                    if (bound === '_time') axis = 'x';
+                    if (bound === xPrimary) axis = 'x';
 
                     const thisAxis = trellisGraph.options.scales[axis]
                     const { min, max } = bounds[bound]
@@ -591,11 +598,10 @@ class Vaporous {
         return this.manageExit()
     }
 
-    _checkpoint(operation, name, data) {
-
+    _checkpoint(operation, name, data, { disableCloning }) {
         const operations = {
-            create: () => this.checkpoints[name] = structuredClone(data),
-            retrieve: () => this.events = structuredClone(this.checkpoints[name]),
+            create: () => this.checkpoints[name] = disableCloning ? data : structuredClone(data),
+            retrieve: () => this.events = disableCloning ? this.checkpoints[name] : structuredClone(this.checkpoints[name]),
             delete: () => delete this.checkpoints[name]
         }
 
@@ -603,9 +609,9 @@ class Vaporous {
         return this
     }
 
-    checkpoint(operation, name) {
+    checkpoint(operation, name, { disableCloning } = {}) {
         this.manageEntry()
-        this._checkpoint(operation, name, this.events)
+        this._checkpoint(operation, name, this.events, { disableCloning })
         return this.manageExit()
     }
 
@@ -634,28 +640,34 @@ class Vaporous {
     }
 
     toGraph(x, y, series, trellis = false) {
+
         this.manageEntry()
         if (!(y instanceof Array)) y = [y]
+        if (!(x instanceof Array)) x = [x]
 
         const yAggregations = y.map(item => [
             new Aggregation(item, 'list', item),
         ]).flat()
 
+        const xBy = x.map(x => new By(x))
+
         this.events = this._stats([
             ...yAggregations,
             new Aggregation(series, 'list', series),
             new Aggregation(trellis, 'values', 'trellis'),
-            new By(x), trellis ? new By(trellis) : null], this.events
+            ...xBy, trellis ? new By(trellis) : null], this.events
         ).arr
 
         const trellisMap = {}, columnDefinitions = {}
 
         this._table(event => {
-            const _time = event[x]
-            if (_time === null || _time === undefined) throw new Error(`To graph operation with params ${x}, ${y.join(',')} looks corrupt. x value resolves to null - the graph will not render`)
             const obj = {
-                _time
+                [x[0]]: event[x[0]]
             }
+
+            x.forEach(item => {
+                obj[item] = event[item]
+            })
 
             event[series].forEach((series, i) => {
                 y.forEach(item => {
@@ -690,20 +702,22 @@ class Vaporous {
             return obj
         })
 
-        const graphFlags = {}
+        const graphFlags = {
+            xPrimary: x[0]
+        }
 
         if (trellis) {
             graphFlags.trellis = true;
             graphFlags.trellisName = Object.keys(trellisMap)
             graphFlags.columnDefinitions = Object.keys(trellisMap).map(tval => {
-                const adjColumns = ['_time']
-                Object.keys(columnDefinitions[tval]).forEach(col => (col !== '_time') ? adjColumns.push(col) : null)
+                const adjColumns = [x[0]]
+                Object.keys(columnDefinitions[tval]).forEach(col => (col !== x[0]) ? adjColumns.push(col) : null)
                 return adjColumns
             })
             this.events = Object.keys(trellisMap).map(tval => trellisMap[tval])
         } else {
-            const adjColumns = ['_time']
-            Object.keys(columnDefinitions).forEach(col => (col !== '_time') ? adjColumns.push(col) : null)
+            const adjColumns = [x[0]]
+            Object.keys(columnDefinitions).forEach(col => (col !== x[0]) ? adjColumns.push(col) : null)
 
             this.events = [this.events]
             graphFlags.columnDefinitions = [adjColumns]
