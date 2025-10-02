@@ -30,10 +30,10 @@ git merge main
 node examples/gym/query.js
 node examples/sensors/query.js
 
-mv gym.html temp_sensors.html pages
+mv gym.html sensors.html pages
 
 git add pages/gym.html 
-git add pages/temp_sensors.html
+git add pages/sensors.html
 
 git commit -m "- Update pages"
 git push
