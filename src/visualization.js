@@ -205,6 +205,7 @@ module.exports = {
                 },
                 x: {
                     type: 'linear',
+                    stacked: y1Stacked,
                     ticks: {
                         display: xTicks
                     },
@@ -213,16 +214,20 @@ module.exports = {
                 }
             }
 
-            if (y2WasMapped) scales.y2 = {
-                type: 'linear',
-                display: true,
-                position: 'right',
-                grid: {
-                    drawOnChartArea: false
-                },
-                stacked: y2Stacked,
-                min: [],
-                max: []
+            if (y2WasMapped) {
+                scales.y2 = {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    grid: {
+                        drawOnChartArea: false
+                    },
+                    stacked: y2Stacked,
+                    min: [],
+                    max: []
+                }
+                // If y2 stacking is enabled, also enable x-axis stacking
+                if (y2Stacked) scales.x.stacked = true
             }
 
             return {
