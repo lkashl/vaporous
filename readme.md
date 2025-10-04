@@ -9,7 +9,7 @@ The query syntax is heavily inspired by splunk with more bias towards programmit
 
 Interactive previews for two datasources are available
 
-- [Virtualised temperature sensor data](https://lkashl.github.io/vaporous/pages/temp_sensors.html)
+- [Virtualised temperature sensor data](https://lkashl.github.io/vaporous/pages/sensors.html)
 - [CSV delimited virtruvian data](https://lkashl.github.io/vaporous/pages/gym.html)
 
 Examples of the source queries used can be referenced in the [examples folder](https://github.com/lkashl/vaporous/tree/main/examples)
