@@ -73,7 +73,15 @@ const main = async () => {
         })
         .checkpoint('create', 'temperatureData')
         .toGraph('time', ['energySpend', 'temp'], 'variant', 'deviceId')
-        .build('Raw Temp', 'Table', {
+        .eval(event => {
+            event.forEach(item => {
+                if (item._trellis === "Heidi") {
+                    delete item.sensora_energySpend
+                    delete item.sensora_temp
+                }
+            })
+        })
+        .build('Raw Temp Feed - ', 'Table', {
             tab: "Example Table",
             columns: 3,
         })

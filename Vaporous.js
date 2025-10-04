@@ -140,6 +140,7 @@ class Vaporous {
             return vals;
         })
     }
+
     table(modifier) {
         this.manageEntry()
         this._table(modifier)
@@ -455,14 +456,21 @@ class Vaporous {
         const xPrimary = this.graphFlags.at(-1).xPrimary
 
         const graphData = this.events.map((trellis, i) => {
-            if (type === 'Table') {
-                return trellis;
-            }
-
-            const dataOptions = {}
 
             const trellisName = this.graphFlags.at(-1).trellisName?.[i] || ""
             const columnDefinitions = this.graphFlags.at(-1).columnDefinitions[i]
+
+            const titleText = name + trellisName
+
+            if (type === 'Table') {
+                return {
+                    columnDefinitions: columnDefinitions.map(field => ({ field })),
+                    rowData: trellis,
+                    title: titleText
+                };
+            }
+
+            const dataOptions = {}
 
             // For every event in this trellis restructure to chart.js
             if (sortX) trellis = _sort(sortX, trellis, xPrimary)
@@ -523,13 +531,17 @@ class Vaporous {
                     type: 'linear',
                     display: true,
                     position: 'left',
-                    stacked: y1Stacked
+                    stacked: y1Stacked,
+                    min: [],
+                    max: []
                 },
                 x: {
                     type: 'linear',
                     ticks: {
                         display: xTicks
-                    }
+                    },
+                    min: [],
+                    max: []
                 }
             }
 
@@ -540,7 +552,9 @@ class Vaporous {
                 grid: {
                     drawOnChartArea: false
                 },
-                stacked: y2Stacked
+                stacked: y2Stacked,
+                min: [],
+                max: []
             }
 
             return {
@@ -555,33 +569,66 @@ class Vaporous {
                             position: 'bottom',
                         },
                         title: {
-                            display: true,
-                            text: name + trellisName
+                            display: false,
+                            text: titleText
                         }
                     }
                 }
             }
         })
 
-        if (trellisAxis === 'shared') {
-            // Do a second iteration to implement bounds
+        // Do a second iteration to implement bounds on axis if the trellis is shared
+        // We need to keep in mind that stacking might be required and sum accordingly
+        if (trellisAxis === 'shared' && type != "Table") {
+            const stacked = { y1Stacked, y2Stacked }
+
+
             graphData.forEach(trellisGraph => {
+
                 Object.keys(bounds).forEach(bound => {
                     let axis = isY2(bound) ? 'y2' : 'y'
                     if (bound === xPrimary) axis = 'x';
 
                     const thisAxis = trellisGraph.options.scales[axis]
-                    const { min, max } = bounds[bound]
-                    if (!thisAxis.min) {
-                        thisAxis.min = min
-                        thisAxis.max = max
-                    }
-                    if (min < thisAxis.min) thisAxis.min = min
-                    if (max > thisAxis.max) thisAxis.max = max
 
+                    const { min, max } = bounds[bound]
+                    thisAxis.min.push(min)
+                    thisAxis.max.push(max)
                 })
 
+                if (trellisGraph.options) Object.keys(trellisGraph.options.scales).forEach(axis => {
+                    const scale = trellisGraph.options.scales[axis]
+                    // Sort our axis
+                    scale.min = scale.min.sort((a, b) => a - b)
+                    scale.max = scale.max.sort((a, b) => a - b)
+
+                    const highestMax = scale.max.at(-1)
+                    const lowestMin = scale.min.at(-1)
+
+                    // Determine if stacking is enabled and take action min
+                    if (stacked[`${axis}Stacked`] && lowestMin < 0) {
+                        scale.min.reduce((prev, curr) => {
+                            if (curr < 0) return prev + curr
+                            return curr
+                        }, 0)
+                    } else {
+                        scale.min = lowestMin
+                    }
+
+                    // Determine if stacking is enabled and take action max
+                    if (stacked[`${axis}Stacked`] && highestMax > 0) {
+                        scale.max.reduce((prev, curr) => {
+                            if (curr > 0) return prev + curr
+                            return curr
+                        }, 0)
+                    } else {
+                        scale.min = lowestMin
+                    }
+
+                })
             })
+
+
         }
 
         const data = JSON.stringify(graphData)
@@ -699,6 +746,8 @@ class Vaporous {
                 })
             }
 
+            obj._trellis = event.trellis[0]
+
             return obj
         })
 
@@ -731,7 +780,7 @@ class Vaporous {
         this.manageEntry()
         const classSafe = (name) => name.replace(/[^a-zA-Z0-9]/g, "_")
 
-        const createElement = (name, type, visualisationOptions, eventData, { trellis, trellisName = "" }) => {
+        const createElement = (name, type, visualisationOptions, eventData, { trellis, trellisName = "", columnDefinitions }) => {
 
             if (classSafe(visualisationOptions.tab) !== selectedTab) return;
 
@@ -752,13 +801,44 @@ class Vaporous {
             eventData.forEach((trellisData, i) => {
                 const parentHolder = document.createElement('div')
 
+                const titleDiv = document.createElement('div')
+                titleDiv.classList.add('graphTitle')
+                parentHolder.appendChild(titleDiv)
 
+                if (trellisData.options) {
+                    titleDiv.textContent = trellisData.options.plugins.title.text
+                } else {
+                    titleDiv.textContent = trellisData.title
+                }
 
                 document.getElementById('content').appendChild(parentHolder)
 
                 parentHolder.style = `flex: 0 0 calc(${100 / columnCount}% - 8px); max-width: calc(${100 / columnCount}% - 8px);`
                 if (type === 'Table') {
-                    new Tabulator(parentHolder, { data: trellisData, autoColumns: 'full', layout: "fitDataStretch", })
+                    const tableDiv = document.createElement('div')
+                    tableDiv.classList.add('tableHolder')
+                    document.documentElement.style.setProperty("--ag-spacing", `4px`);
+
+
+                    // Need to do column defintiions here
+                    parentHolder.appendChild(tableDiv)
+                    new agGrid.createGrid(tableDiv, {
+                        rowData: trellisData.rowData,
+                        // Columns to be displayed (Should match rowData properties)
+                        columnDefs: trellisData.columnDefinitions,
+                        defaultColDef: {
+                            flex: 1,
+                            resizable: true,
+                            sortable: true,
+                            filter: true
+                        },
+                        domLayout: 'autoHeight'
+                        // suppressHorizontalScroll: false,
+                        // autoSizeStrategy: {
+                        //     type: 'fitGridWidth',
+                        //     defaultMinWidth: 100
+                        // }
+                    });
                 } else {
                     const graphEntity = document.createElement('canvas')
                     parentHolder.appendChild(graphEntity)
@@ -776,37 +856,61 @@ class Vaporous {
             <style>
                 ${styles}
             </style>
-    
-            <link href="https://unpkg.com/tabulator-tables@6.3.1/dist/css/tabulator.min.css" rel="stylesheet">
-            <script type="text/javascript" src="https://unpkg.com/tabulator-tables@6.3.1/dist/js/tabulator.min.js"></script>
             <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+            <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@34.2.0/dist/ag-grid-community.min.js"></script>
+
     
     <script type="text/javascript">
 
       const classSafe = ${classSafe.toString()}
 
       var selectedTab = classSafe("${this.tabs[0]}")
+      var previousTab = null
       const tokens = {}
       const visualisationData = [${this.visualisationData.join(',')}]
+      const tabOrder = [${this.tabs.map(tab => `"${classSafe(tab)}"`).join(',')}]
 
       const _sort = ${_sort.toString()}
       const createElement = ${createElement.toString()}
       
       function drawVis(tab) {
             if (tab) {
-                if (selectedTab) document.getElementById(selectedTab).classList.remove('selectedTab')
+                if (selectedTab) {
+                    document.getElementById(selectedTab).classList.remove('selectedTab')
+                    document.getElementById(selectedTab).classList.remove('slideFromRight')
+                    previousTab = selectedTab
+                }
                 selectedTab = tab
             } else if (${this.tabs.length > 0}) {
                 selectedTab = classSafe('${this.tabs[0]}')
             }
 
-            if (selectedTab) document.getElementById(selectedTab).classList.add('selectedTab')
+            if (selectedTab) {
+                const selectedElement = document.getElementById(selectedTab)
+                selectedElement.classList.add('selectedTab')
+                
+                // Determine slide direction based on tab positions
+                if (previousTab) {
+                    const previousIndex = tabOrder.indexOf(previousTab)
+                    const currentIndex = tabOrder.indexOf(selectedTab)
+                    
+                    if (currentIndex < previousIndex) {
+                        // Moving to left tab, slide from right
+                        selectedElement.classList.add('slideFromRight')
+                    }
+                    // For right movement or first load, use default slideFromLeft animation
+                }
+            }
             document.getElementById('content').innerHTML = ''
             ${this.visualisations.map(([name, type, visualisationOptions, dataIndex, graphFlags]) => {
             return `createElement('${name}', '${type}', ${JSON.stringify(visualisationOptions)} ,${dataIndex}, ${JSON.stringify(graphFlags)})`
         })}
       }
 
+        document.addEventListener("DOMContentLoaded", function(event) {
+            drawVis()
+        });
+      
     </script>
   </head>
   <body>
