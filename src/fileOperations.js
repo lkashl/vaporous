@@ -4,17 +4,55 @@ const split2 = require('split2');
 const Papa = require('papaparse');
 
 module.exports = {
-    fileScan(directory) {
-        this.manageEntry()
+    _fileScan(directory) {
         const items = fs.readdirSync(directory)
-        this.events = items.map(item => {
+        return items.map(item => {
             return {
                 _fileInput: path.resolve(directory, item)
             }
         })
+    },
+    async _fileLoad(delim, parser) {
+        this.manageEntry()
+        const tasks = this.events.map(obj => {
+            const content = []
+
+            return new Promise((resolve, reject) => {
+                fs.createReadStream(obj._fileInput)
+                    .pipe(split2(delim))
+                    .on('data', line => {
+                        try {
+                            const event = parser(line)
+                            if (!event) return;
+
+                            delete obj._fileInput
+                            if (event instanceof Array) {
+                                event.forEach(item => {
+                                    Object.assign(event, obj)
+                                    content.push(item)
+                                })
+                            } else {
+                                Object.assign(event, obj)
+                                content.push(event)
+                            }
+                        } catch (err) {
+                            throw err;
+                        }
+
+                    })
+                    .on('end', () => {
+                        resolve(content)
+                    })
+            })
+        })
+
+        return Promise.all(tasks)
+    },
+    fileScan(directory) {
+        this.manageEntry()
+        this.events = this._fileScan(directory)
         return this.manageExit()
     },
-
     async csvLoad(parser) {
         this.manageEntry()
         const tasks = this.events.map(obj => {
@@ -30,13 +68,14 @@ module.exports = {
                         try {
                             const event = parser(row)
                             if (event !== null) {
+                                delete obj._fileInput
                                 if (event instanceof Array) {
                                     event.forEach(item => {
-                                        item._fileInput = obj._fileInput
+                                        Object.assign(item, obj)
                                         content.push(item)
                                     })
                                 } else {
-                                    event._fileInput = obj._fileInput
+                                    Object.assign(event, obj)
                                     content.push(event)
                                 }
                             }
@@ -58,38 +97,7 @@ module.exports = {
 
     async fileLoad(delim, parser) {
         this.manageEntry()
-        const tasks = this.events.map(obj => {
-            const content = []
-
-            return new Promise((resolve, reject) => {
-                fs.createReadStream(obj._fileInput)
-                    .pipe(split2(delim))
-                    .on('data', line => {
-                        try {
-                            const event = parser(line)
-                            if (!event) return;
-
-                            if (event instanceof Array) {
-                                event.forEach(item => {
-                                    item._fileInput = obj._fileInput
-                                    content.push(item)
-                                })
-                            } else {
-                                if (!event._fileInput) event._fileInput = obj._fileInput
-                                content.push(event)
-                            }
-                        } catch (err) {
-                            throw err;
-                        }
-
-                    })
-                    .on('end', () => {
-                        resolve(content)
-                    })
-            })
-        })
-
-        this.events = await Promise.all(tasks)
+        this.events = await this._fileLoad(this.events, delim, parser)
         return this.manageExit()
     },
 

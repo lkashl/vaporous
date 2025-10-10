@@ -100,10 +100,10 @@ module.exports = {
         return this.manageExit()
     },
 
-    build(name, type, { tab = 'Default', columns = 2, y2, y1Type, y2Type, y1Stacked, y2Stacked, sortX = 'asc', xTicks = false, trellisAxis = "shared", legend } = {}) {
+    build(name, type, { tab = 'Default', columns = 2, y2, y1Type, y2Type, y1Stacked, y2Stacked, sortX = 'asc', xTicks = false, trellisAxis = "shared", legend, extendedDescription } = {}) {
         this.manageEntry()
 
-        const visualisationOptions = { tab, columns }
+        const visualisationOptions = { tab, columns, extendedDescription }
 
 
         let bounds = {}
@@ -194,14 +194,17 @@ module.exports = {
                 })
             };
 
+            const isSharedAxis = trellisAxis === 'shared'
+            const sharedAxisArr = isSharedAxis ? [] : undefined
+
             const scales = {
                 y: {
                     type: 'linear',
                     display: true,
                     position: 'left',
                     stacked: y1Stacked,
-                    min: [],
-                    max: []
+                    min: sharedAxisArr,
+                    max: sharedAxisArr,
                 },
                 x: {
                     type: 'linear',
@@ -209,8 +212,8 @@ module.exports = {
                     ticks: {
                         display: xTicks
                     },
-                    min: [],
-                    max: []
+                    min: sharedAxisArr,
+                    max: sharedAxisArr,
                 }
             }
 
@@ -223,8 +226,8 @@ module.exports = {
                         drawOnChartArea: false
                     },
                     stacked: y2Stacked,
-                    min: [],
-                    max: []
+                    min: sharedAxisArr,
+                    max: sharedAxisArr,
                 }
                 // If y2 stacking is enabled, also enable x-axis stacking
                 if (y2Stacked) scales.x.stacked = true
@@ -320,11 +323,22 @@ module.exports = {
 
     render(location = './Vaporous_generation.html') {
         this.manageEntry()
+
+
         const classSafe = (name) => name.replace(/[^a-zA-Z0-9]/g, "_")
+
+        if (tabOrder) this.tabs = tabOrder
 
         const createElement = (name, type, visualisationOptions, eventData, { trellis, trellisName = "", columnDefinitions }) => {
 
             if (classSafe(visualisationOptions.tab) !== selectedTab) return;
+
+            if (visualisationOptions.extendedDescription) {
+                const descriptions = document.getElementById('extendedDescription')
+                const thisDescription = document.createElement('div')
+                thisDescription.innerHTML = visualisationOptions.extendedDescription
+                descriptions.appendChild(thisDescription)
+            }
 
             eventData = visualisationData[eventData]
 
@@ -354,6 +368,7 @@ module.exports = {
                 }
 
                 document.getElementById('content').appendChild(parentHolder)
+                document.getElementById('extendedDescription').innerHTML = ''
 
                 parentHolder.style = `flex: 0 0 calc(${100 / columnCount}% - 8px); max-width: calc(${100 / columnCount}% - 8px);`
                 if (type === 'Table') {
@@ -460,6 +475,7 @@ module.exports = {
             ${this.tabs.map(tab => `<div id=${classSafe(tab)} class='tabs' onclick="drawVis('${classSafe(tab)}')">${tab}</div>`).join("\n")}
         </div>` : ''}
 
+    <div id='extendedDescrpition'></div>
     <div id='content'>
         </div>
   </body>

@@ -23,6 +23,7 @@ class Vaporous {
 
         this.savedMethods = {}
         this.checkpoints = {}
+        this.activeCheckpointRestore = null
 
         this.loggers = loggers
         this.perf = null
