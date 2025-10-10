@@ -39,33 +39,31 @@ module.exports = {
             if (this.activeCheckpointRestore && name !== this.activeCheckpointRestore) throw new Error('Only one checkpoint restoration can be active at a time')
 
             Object.keys(this.checkpoints).forEach(async (checkpoint) => {
+
                 const checkpointEvents = this.checkpoints[checkpoint]
 
                 for (const event in checkpointEvents) {
-                    const checkpointEvents = this.checkpoints[checkpoint]
+                    const thisEvent = checkpointEvents[event]
+                    const handlerKey = `${checkpoint}.${name}.${thisEvent[partitionBy]}.vpck`
 
-                    for (const event in checkpointEvents) {
-                        const thisEvent = checkpointEvents[event]
-                        const handlerKey = `${checkpoint}.${name}.${thisEvent[partitionBy]}.vpck`
+                    if (!fileHandler[handlerKey]) fileHandler[handlerKey] = fs.createWriteStream(`./${handlerKey}`)
+                    const thisFileHandler = fileHandler[handlerKey]
 
-                        if (!fileHandler[handlerKey]) fileHandler[handlerKey] = fs.createWriteStream(`./${handlerKey}`)
-                        const thisFileHandler = fileHandler[handlerKey]
-
-                        function writeData(data) {
-                            return new Promise(resolve => {
-                                const status = thisFileHandler.write(data)
-                                if (!status) {
-                                    thisFileHandler.once('drain', () => resolve(writeData(data)))
-                                } else {
-                                    resolve()
-                                }
-                            })
-                        }
-
-                        thisEvent._checkpoint = checkpoint;
-                        await writeData(JSON.stringify(thisEvent) + '\n')
+                    function writeData(data) {
+                        return new Promise(resolve => {
+                            const status = thisFileHandler.write(data)
+                            if (!status) {
+                                thisFileHandler.once('drain', () => resolve(writeData(data)))
+                            } else {
+                                resolve()
+                            }
+                        })
                     }
+
+                    thisEvent._checkpoint = checkpoint;
+                    await writeData(JSON.stringify(thisEvent) + '\n')
                 }
+
             })
 
             this.activeCheckpointRestore = null;
