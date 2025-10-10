@@ -37,7 +37,3 @@ git add pages/sensors.html
 
 git commit -m "- Update pages"
 git push
-
-git checkout main
-npm version patch
-npm publish
