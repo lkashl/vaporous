@@ -12,9 +12,8 @@ module.exports = {
             }
         })
     },
-    async _fileLoad(delim, parser) {
-        this.manageEntry()
-        const tasks = this.events.map(obj => {
+    async _fileLoad(events, delim, parser) {
+        const tasks = events.map(obj => {
             const content = []
 
             return new Promise((resolve, reject) => {

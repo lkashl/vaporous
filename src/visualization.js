@@ -195,7 +195,7 @@ module.exports = {
             };
 
             const isSharedAxis = trellisAxis === 'shared'
-            const sharedAxisArr = isSharedAxis ? [] : undefined
+            const sharedAxisArr = () => isSharedAxis ? [] : undefined
 
             const scales = {
                 y: {
@@ -203,8 +203,8 @@ module.exports = {
                     display: true,
                     position: 'left',
                     stacked: y1Stacked,
-                    min: sharedAxisArr,
-                    max: sharedAxisArr,
+                    min: sharedAxisArr(),
+                    max: sharedAxisArr(),
                 },
                 x: {
                     type: 'linear',
@@ -212,8 +212,8 @@ module.exports = {
                     ticks: {
                         display: xTicks
                     },
-                    min: sharedAxisArr,
-                    max: sharedAxisArr,
+                    min: sharedAxisArr(),
+                    max: sharedAxisArr(),
                 }
             }
 
@@ -226,8 +226,8 @@ module.exports = {
                         drawOnChartArea: false
                     },
                     stacked: y2Stacked,
-                    min: sharedAxisArr,
-                    max: sharedAxisArr,
+                    min: sharedAxisArr(),
+                    max: sharedAxisArr(),
                 }
                 // If y2 stacking is enabled, also enable x-axis stacking
                 if (y2Stacked) scales.x.stacked = true
@@ -321,9 +321,8 @@ module.exports = {
         return this.manageExit()
     },
 
-    render(location = './Vaporous_generation.html') {
+    render(location = './Vaporous_generation.html', { tabOrder }) {
         this.manageEntry()
-
 
         const classSafe = (name) => name.replace(/[^a-zA-Z0-9]/g, "_")
 
@@ -368,7 +367,6 @@ module.exports = {
                 }
 
                 document.getElementById('content').appendChild(parentHolder)
-                document.getElementById('extendedDescription').innerHTML = ''
 
                 parentHolder.style = `flex: 0 0 calc(${100 / columnCount}% - 8px); max-width: calc(${100 / columnCount}% - 8px);`
                 if (type === 'Table') {
@@ -459,6 +457,7 @@ module.exports = {
                 }
             }
             document.getElementById('content').innerHTML = ''
+            document.getElementById('extendedDescription').innerHTML = ''
             ${this.visualisations.map(([name, type, visualisationOptions, dataIndex, graphFlags]) => {
             return `createElement('${name}', '${type}', ${JSON.stringify(visualisationOptions)} ,${dataIndex}, ${JSON.stringify(graphFlags)})`
         })}
@@ -475,9 +474,8 @@ module.exports = {
             ${this.tabs.map(tab => `<div id=${classSafe(tab)} class='tabs' onclick="drawVis('${classSafe(tab)}')">${tab}</div>`).join("\n")}
         </div>` : ''}
 
-    <div id='extendedDescrpition'></div>
-    <div id='content'>
-        </div>
+    <div id='extendedDescription'></div>
+    <div id='content'></div>
   </body>
 </html>
         `)

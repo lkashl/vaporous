@@ -55,14 +55,14 @@ module.exports = {
                             return new Promise(resolve => {
                                 const status = thisFileHandler.write(data)
                                 if (!status) {
-                                    thisFildeHandler.once('drain', () => resolve(writeData(data)))
+                                    thisFileHandler.once('drain', () => resolve(writeData(data)))
                                 } else {
                                     resolve()
                                 }
                             })
                         }
 
-                        thisEvent.checkpoint = checkpoint;
+                        thisEvent._checkpoint = checkpoint;
                         await writeData(JSON.stringify(thisEvent) + '\n')
                     }
                 }
@@ -73,18 +73,18 @@ module.exports = {
             this.activeCheckpointRestore = name;
 
             const files = this._fileScan('./').filter(event => event._fileInput.includes('.vpck'))
-            let filesToInstrospect = []
+            let filesToIntrospect = []
             const sessionsDiscovered = []
 
             this.events.forEach(event => {
-                const entitiesFound = files.filter(file => file._fileINput.includes(name + "." + event.session + ".vpck"))
+                const entitiesFound = files.filter(file => file._fileInput.includes(name + "." + event.session + ".vpck"))
                 if (entitiesFound.length > 0) sessionsDiscovered.push(event.session)
-                filesToInstrospect = filesToInstrospect.concat(entitiesFound)
+                filesToIntrospect = filesToIntrospect.concat(entitiesFound)
             })
 
-            if (filesToInstrospect.length === 0) return this;
+            if (filesToIntrospect.length === 0) return this;
 
-            let fileContents = await this._fileLoad(filesToInstrospect, '\n', event => JSON.parse(event))
+            let fileContents = await this._fileLoad(filesToIntrospect, '\n', event => JSON.parse(event))
             fileContents = fileContents.flat(1)
 
             fileContents.forEach(item => {
@@ -94,7 +94,9 @@ module.exports = {
 
             this.events = this.events.filter(event => !sessionsDiscovered.includes(event.session))
 
-            return this.manageExit()
         }
+
+
+        return this.manageExit()
     }
 }
