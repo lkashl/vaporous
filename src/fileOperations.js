@@ -3,6 +3,13 @@ const path = require('path');
 const split2 = require('split2');
 const Papa = require('papaparse');
 
+
+const preserveFileInput = (event, enrich) => {
+    const preserve = event._fileInput
+    Object.assign(event, enrich)
+    if (preserve) event._fileInput = preserve
+}
+
 module.exports = {
     _fileScan(directory) {
         const items = fs.readdirSync(directory)
@@ -24,14 +31,13 @@ module.exports = {
                             const event = parser(line)
                             if (!event) return;
 
-                            delete obj._fileInput
                             if (event instanceof Array) {
                                 event.forEach(item => {
-                                    Object.assign(event, obj)
+                                    preserveFileInput(item, obj)
                                     content.push(item)
                                 })
                             } else {
-                                Object.assign(event, obj)
+                                preserveFileInput(event, obj)
                                 content.push(event)
                             }
                         } catch (err) {
@@ -67,14 +73,13 @@ module.exports = {
                         try {
                             const event = parser(row)
                             if (event !== null) {
-                                delete obj._fileInput
                                 if (event instanceof Array) {
                                     event.forEach(item => {
-                                        Object.assign(item, obj)
+                                        preserveFileInput(item, obj)
                                         content.push(item)
                                     })
                                 } else {
-                                    Object.assign(event, obj)
+                                    preserveFileInput(event, obj)
                                     content.push(event)
                                 }
                             }

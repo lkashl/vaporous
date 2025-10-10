@@ -321,7 +321,7 @@ module.exports = {
         return this.manageExit()
     },
 
-    render(location = './Vaporous_generation.html', { tabOrder }) {
+    render(location = './Vaporous_generation.html', { tabOrder } = {}) {
         this.manageEntry()
 
         const classSafe = (name) => name.replace(/[^a-zA-Z0-9]/g, "_")
