@@ -11,6 +11,9 @@ const fileOperationsMixin = require('./src/fileOperations');
 const statisticsMixin = require('./src/statistics');
 const checkpointsMixin = require('./src/checkpoints');
 const visualizationMixin = require('./src/visualization');
+const httpMixin = require('./src/http')
+const processingMixin = require('./src/processing')
+
 
 class Vaporous {
 
@@ -106,5 +109,7 @@ Object.assign(Vaporous.prototype, fileOperationsMixin);
 Object.assign(Vaporous.prototype, statisticsMixin);
 Object.assign(Vaporous.prototype, checkpointsMixin);
 Object.assign(Vaporous.prototype, visualizationMixin);
+Object.assign(Vaporous.prototype, httpMixin)
+Object.assign(Vaporous.prototype, processingMixin)
 
 module.exports = { Vaporous, Aggregation, By, Window }
