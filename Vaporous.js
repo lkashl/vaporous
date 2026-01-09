@@ -100,6 +100,17 @@ class Vaporous {
         this.events = this.events.concat(entities)
         return this.manageExit()
     }
+
+    clone() {
+        this.manageEntry()
+        const cloneInstance = new Vaporous()
+
+        Object.keys(this).forEach(key => {
+            cloneInstance[key] = this[key]
+        })
+
+        return cloneInstance
+    }
 }
 
 // Apply mixins to Vaporous prototype

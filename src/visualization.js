@@ -100,13 +100,14 @@ module.exports = {
         return this.manageExit()
     },
 
-    build(name, type, { tab = 'Default', columns = 2, y2, y1Type, y2Type, y1Stacked, y2Stacked, sortX = 'asc', xTicks = false, trellisAxis = "shared", legend, extendedDescription } = {}) {
+    build(name, type, { tab = 'Default', columns = 2, y2, y1Type, y2Type, y1Stacked, y2Stacked, sortX = 'asc', xTicks, trellisAxis = "shared", legend, extendedDescription } = {}) {
         this.manageEntry()
 
         const visualisationOptions = { tab, columns, extendedDescription }
 
 
         let bounds = {}
+
 
         const isY2 = (data) => {
             let y2Mapped = false;
@@ -122,6 +123,11 @@ module.exports = {
         }
 
         const xPrimary = this.graphFlags.at(-1).xPrimary
+
+        // Check whether x is categorical
+        // Ideally this should be explicitly defined, but we will use inference by the first data type in the event it is not
+        let xCategorical = typeof this.events[0][xPrimary] !== "number"
+        if (xTicks === undefined && xCategorical) xTicks = true
 
         const graphData = this.events.map((trellis, i) => {
 
@@ -189,6 +195,8 @@ module.exports = {
                         base.fill = 'origin'
                     } else if (type === 'Line') {
                         base.pointRadius = 0;
+                    } else {
+                        throw new Error('Visualisation of "' + type + '" is not supported')
                     }
                     return base
                 })
@@ -205,8 +213,11 @@ module.exports = {
                     stacked: y1Stacked,
                     min: sharedAxisArr(),
                     max: sharedAxisArr(),
-                },
-                x: {
+                }
+            }
+
+            if (!xCategorical) {
+                scales.x = {
                     type: 'linear',
                     stacked: y1Stacked,
                     ticks: {
@@ -215,7 +226,16 @@ module.exports = {
                     min: sharedAxisArr(),
                     max: sharedAxisArr(),
                 }
+            } else {
+                scales.x = {
+                    type: 'category',
+                    ticks: {
+                        display: xTicks
+                    },
+
+                }
             }
+
 
             if (y2WasMapped) {
                 scales.y2 = {
@@ -263,7 +283,10 @@ module.exports = {
 
                 Object.keys(bounds).forEach(bound => {
                     let axis = isY2(bound) ? 'y2' : 'y'
-                    if (bound === xPrimary) axis = 'x';
+                    if (bound === xPrimary) {
+                        if (xCategorical) return;
+                        axis = 'x';
+                    }
 
                     const thisAxis = trellisGraph.options.scales[axis]
 
@@ -273,6 +296,9 @@ module.exports = {
                 })
 
                 if (trellisGraph.options) Object.keys(trellisGraph.options.scales).forEach(axis => {
+
+                    if (axis === "x" && xCategorical) return;
+
                     const scale = trellisGraph.options.scales[axis]
                     // Sort our axis
                     scale.min = scale.min.sort((a, b) => a - b)
