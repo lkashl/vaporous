@@ -31,6 +31,8 @@ class Vaporous {
         this.loggers = loggers
         this.perf = null
         this.totalTime = 0
+
+        this.intervals = []
     }
 
     manageEntry() {
@@ -101,15 +103,21 @@ class Vaporous {
         return this.manageExit()
     }
 
-    clone() {
+    clone({ deep } = {}) {
         this.manageEntry()
         const cloneInstance = new Vaporous()
 
         Object.keys(this).forEach(key => {
-            cloneInstance[key] = this[key]
+            cloneInstance[key] = (deep && key !== "loggers" && key !== "intervals") ? structuredClone(this[key]) : this[key]
         })
 
         return cloneInstance
+    }
+
+    destroy() {
+        this.manageEntry()
+
+        return this.manageExit()
     }
 }
 

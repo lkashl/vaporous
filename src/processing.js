@@ -1,4 +1,4 @@
-async function parallel(target, funct, { mode = "dynamic" } = {}) {
+async function parallel(target, funct, { mode = "dynamic", multiThread = false } = {}) {
     this.manageEntry()
     let progress;
 
@@ -27,19 +27,25 @@ async function parallel(target, funct, { mode = "dynamic" } = {}) {
         const tasks = []
         const eventList = this.events.slice();
 
-        const process = async (event) => {
+        const processSingleThread = async (event) => {
             if (eventList.length === 0) return;
             const thisEvent = eventList.splice(0, 1)
             const instance = this.clone()
             instance.events = thisEvent
+
+
             const task = await funct(instance)
             tasks.push(task)
-            await process()
+            await processSingleThread()
+        }
+
+        const processMultiThread = async (event) => {
+
         }
 
         const streams = []
         for (let i = 0; i < target; i++) {
-            streams.push(process())
+            streams.push(processSingleThread())
         }
 
         await Promise.all(streams)
@@ -72,8 +78,32 @@ async function batch() {
     this.manageExit()
 }
 
+const sleep = (interval) => {
+    return new Promise(resolve => {
+        setTimeout(() => resolve(), interval)
+    })
+}
+
+async function interval(funct, intervalTiming, options) {
+    this.intervals.push(this)
+    const reference = this.intervals.at(-1)
+
+    const loop = async () => {
+        const cloned = reference.clone({ deep: true })
+
+        //this.manageEntry()
+        await funct(cloned)
+
+        await sleep(intervalTiming)
+        await loop()
+    }
+
+    await loop()
+    //return this.manageExit()
+}
+
 
 module.exports = {
     parallel,
-    sequential
+    interval
 }

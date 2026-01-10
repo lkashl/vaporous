@@ -24,70 +24,76 @@ const main = async () => {
             username: event.users.username,
             password: event.users.password
         }))
-        .eval(item => ({
-            _http_req_uri: 'https://dummyjson.com/auth/login',
-            _http_req_method: 'post',
-            _http_req_body: JSON.stringify(item),
-            _http_req_headers: {
-                'content-type': 'application/json'
-            },
-            ...item
-        }))
-        .load_http()
-
-    await vaporous
-        .eval(event => ({
-            _http_req_uri: 'https:/dummyjson.com/auth/me',
-            _http_req_method: 'get',
-            _http_req_headers: {
-                'content-type': 'application/json',
-                'authorization': JSON.parse(event._http_res_body).accessToken
-            },
-            _http_req_body: undefined
-        }))
-        .parallel(4, vaporous => {
-            return vaporous.load_http()
-        }, { mode: 'dynamic' })
 
 
     vaporous
-        .table(event => {
-            const user = JSON.parse(event._http_res_body)
-            return {
-                gender: user.gender,
-                age: user.age,
-                bloodGroup: user.bloodGroup,
-                height: user.height,
-                weight: user.weight,
-                state: user.address.state
-            }
-        })
-        .assert((event, i, { expect }) => {
-            expect(event.gender === "male" || event.gender === "female");
+        .interval(async (vaporous) => {
+            await vaporous.eval(item => ({
+                _http_req_uri: 'https://dummyjson.com/auth/login',
+                _http_req_method: 'post',
+                _http_req_body: JSON.stringify(item),
+                _http_req_headers: {
+                    'content-type': 'application/json'
+                },
+                ...item
+            }))
+                .load_http()
 
-            ['age', 'height', 'weight'].forEach(item => {
-                expect(typeof event[item] === "number" && !Number.isNaN(event[item]))
-            })
+            await vaporous
+                .eval(event => ({
+                    _http_req_uri: 'https:/dummyjson.com/auth/me',
+                    _http_req_method: 'get',
+                    _http_req_headers: {
+                        'content-type': 'application/json',
+                        'authorization': JSON.parse(event._http_res_body).accessToken
+                    },
+                    _http_req_body: undefined
+                }))
+                .parallel(4, vaporous => {
+                    return vaporous.load_http()
+                }, { mode: 'dynamic' })
 
-        })
-        .stats(new Aggregation('height', 'avg', 'avgHeight'), new By('gender'))
 
-        .checkpoint('create', 'genderStats')
-        .output()
-        .toGraph('gender', 'avgHeight')
-        .build('Average height', 'Table', {
-            columns: 2,
-            tab: "User Stats"
-        })
+            vaporous
+                .table(event => {
+                    const user = JSON.parse(event._http_res_body)
+                    return {
+                        gender: user.gender,
+                        age: user.age,
+                        bloodGroup: user.bloodGroup,
+                        height: user.height,
+                        weight: user.weight,
+                        state: user.address.state
+                    }
+                })
+                .assert((event, i, { expect }) => {
+                    expect(event.gender === "male" || event.gender === "female");
 
-        .checkpoint('retrieve', 'genderStats')
-        .toGraph('gender', 'avgHeight')
-        .build('Average height', 'Line', {
-            columns: 2,
-            tab: "User Stats"
-        })
+                    ['age', 'height', 'weight'].forEach(item => {
+                        expect(typeof event[item] === "number" && !Number.isNaN(event[item]))
+                    })
 
-        .render()
+                })
+                .stats(new Aggregation('height', 'avg', 'avgHeight'), new By('gender'))
+
+                .checkpoint('create', 'genderStats')
+                .output()
+                .toGraph('gender', 'avgHeight')
+                .build('Average height', 'Table', {
+                    columns: 2,
+                    tab: "User Stats"
+                })
+
+                .checkpoint('retrieve', 'genderStats')
+                .toGraph('gender', 'avgHeight')
+                .build('Average height', 'Line', {
+                    columns: 2,
+                    tab: "User Stats"
+                })
+
+                .render()
+        }, 5000)
+
 
     console.log('done')
 }
