@@ -12,7 +12,7 @@ const document = {}
 module.exports = {
     toGraph(x, y, series, trellis = false) {
 
-        this.manageEntry()
+
         if (!(y instanceof Array)) y = [y]
         if (!(x instanceof Array)) x = [x]
 
@@ -97,11 +97,11 @@ module.exports = {
         }
 
         this.graphFlags.push(graphFlags)
-        return this.manageExit()
+        return this;
     },
 
     build(name, type, { tab = 'Default', columns = 2, y2, y1Type, y2Type, y1Stacked, y2Stacked, sortX = 'asc', xTicks, trellisAxis = "shared", legend, extendedDescription } = {}) {
-        this.manageEntry()
+
 
         const visualisationOptions = { tab, columns, extendedDescription }
 
@@ -344,11 +344,11 @@ module.exports = {
             this.tabs = this.tabs.sort((a, b) => a.localeCompare(b))
         }
 
-        return this.manageExit()
+        return this;
     },
 
     render(location = './Vaporous_generation.html', { tabOrder } = {}) {
-        this.manageEntry()
+
 
         const classSafe = (name) => name.replace(/[^a-zA-Z0-9]/g, "_")
 
@@ -507,6 +507,6 @@ module.exports = {
         `)
         console.log('File ouput created ', path.resolve(filePath))
         if (this.totalTime) console.log("File completed in " + this.totalTime)
-        return this.manageExit()
+        return this;
     }
 }

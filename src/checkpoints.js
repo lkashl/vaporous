@@ -18,22 +18,21 @@ module.exports = {
     },
 
     checkpoint(operation, name, { disableCloning } = {}) {
-        this.manageEntry()
+
         this._checkpoint(operation, name, this.events, { disableCloning })
-        return this.manageExit()
+        return this;
     },
 
     filterIntoCheckpoint(checkpointName, funct, { disableCloning = false, destroy = true } = {}) {
-        this.manageEntry()
+
         const dataCheckpoint = this.events.filter(funct)
         this._checkpoint('create', checkpointName, dataCheckpoint, { disableCloning })
         if (destroy) this.events = this.events.filter(event => !funct(event))
-        return this.manageExit()
+        return this;
     },
 
-
     async storedCheckpoint(operation, name, partitionBy) {
-        this.manageEntry()
+
 
         if (operation == 'create') {
             if (this.activeCheckpointRestore && name !== this.activeCheckpointRestore) throw new Error('Only one checkpoint restoration can be active at a time')
@@ -94,7 +93,6 @@ module.exports = {
 
         }
 
-
-        return this.manageExit()
+        return this;
     }
 }

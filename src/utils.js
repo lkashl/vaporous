@@ -18,17 +18,17 @@ module.exports = {
     keyFromEvent,
     _sort,
     sort(order, ...keys) {
-        this.manageEntry()
+
         this.events = _sort(order, this.events, ...keys)
-        return this.manageExit()
+        return this;
     },
 
     assert(funct) {
-        this.manageEntry()
+
         const expect = (funct) => { if (!funct) throw new Error('Assertion failed') }
         this.events.forEach((event, i) => {
             funct(event, i, { expect })
         })
-        return this.manageExit()
+        return this;
     }
 }

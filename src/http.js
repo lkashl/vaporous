@@ -1,8 +1,7 @@
 const httpLib = require('http')
 const httpsLib = require('https')
 
-async function http() {
-    this.manageEntry()
+async function load_http() {
 
     for (let event of this.events) {
         const { _http_req_uri,
@@ -43,10 +42,9 @@ async function http() {
         await task
     }
 
-    return this.manageExit()
-
+    return this;
 }
 
 module.exports = {
-    load_http: http
+    load_http
 }

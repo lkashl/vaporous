@@ -1,5 +1,5 @@
 async function parallel(target, funct, { mode = "dynamic", multiThread = false } = {}) {
-    this.manageEntry()
+
     let progress;
 
     if (mode === "preallocated") {
@@ -22,7 +22,7 @@ async function parallel(target, funct, { mode = "dynamic", multiThread = false }
 
         progress = vaporousTasks.map(vaporousTask => funct(vaporousTask))
 
-        progress = await Promise.all(progress)
+
     } else if (mode === "dynamic") {
         const tasks = []
         const eventList = this.events.slice();
@@ -54,6 +54,7 @@ async function parallel(target, funct, { mode = "dynamic", multiThread = false }
         throw new Error('Parallel processing mode "' + mode + '" not recognised')
     }
 
+    progress = await Promise.all(progress)
 
     const newLength = progress.reduce((prev, curr) => curr.events.length + prev, 0)
 
@@ -65,17 +66,7 @@ async function parallel(target, funct, { mode = "dynamic", multiThread = false }
         curr++
     })
 
-    this.manageExit()
-}
-
-async function sequential() {
-    this.manageEntry()
-    this.manageExit()
-}
-
-async function batch() {
-    this.manageEntry()
-    this.manageExit()
+    return this;
 }
 
 const sleep = (interval) => {
@@ -91,15 +82,14 @@ async function interval(funct, intervalTiming, options) {
     const loop = async () => {
         const cloned = reference.clone({ deep: true })
 
-        //this.manageEntry()
+        console.log(cloned)
         await funct(cloned)
-
         await sleep(intervalTiming)
         await loop()
     }
 
     await loop()
-    //return this.manageExit()
+    return this;
 }
 
 

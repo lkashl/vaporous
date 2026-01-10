@@ -54,12 +54,13 @@ module.exports = {
         return Promise.all(tasks)
     },
     fileScan(directory) {
-        this.manageEntry()
+
         this.events = this._fileScan(directory)
-        return this.manageExit()
+        return this;
     },
+
     async csvLoad(parser) {
-        this.manageEntry()
+
         const tasks = this.events.map(obj => {
             const content = []
 
@@ -96,23 +97,23 @@ module.exports = {
 
         const payloads = await Promise.all(tasks)
         this.events = payloads
-        return this.manageExit()
+        return this;
     },
 
     async fileLoad(delim, parser) {
-        this.manageEntry()
+
         this.events = await this._fileLoad(this.events, delim, parser)
-        return this.manageExit()
+        return this;
     },
 
     writeFile(title) {
-        this.manageEntry()
+
         fs.writeFileSync('./' + title, JSON.stringify(this.events))
-        return this.manageExit()
+        return this;
     },
 
     output(...args) {
-        this.manageEntry()
+
         if (args.length) {
             console.log(this.events.map(event => {
                 return args.map(item => event[item])
@@ -121,6 +122,6 @@ module.exports = {
             console.log(this.events)
         }
 
-        return this.manageExit()
+        return this;
     }
 }

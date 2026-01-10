@@ -3,17 +3,16 @@ const { Vaporous, By, Aggregation, Window } = require("../../Vaporous")
 
 const main = async () => {
     let vaporous = await new Vaporous({
-        loggers: {
-            perf: (level, event) => console[level](event)
-        }
+        // loggers: {
+        //     perf: (level, event) => console[level](event)
+        // }
     })
         .append([{
             _http_req_uri: 'https://dummyjson.com/users',
             _http_req_method: 'get'
         }])
+        .output()
         .load_http()
-
-    await vaporous
         .table(event => {
             const users = JSON.parse(event._http_res_body)
             return { users: users.users }
@@ -24,22 +23,18 @@ const main = async () => {
             username: event.users.username,
             password: event.users.password
         }))
-
-
-    vaporous
         .interval(async (vaporous) => {
-            await vaporous.eval(item => ({
-                _http_req_uri: 'https://dummyjson.com/auth/login',
-                _http_req_method: 'post',
-                _http_req_body: JSON.stringify(item),
-                _http_req_headers: {
-                    'content-type': 'application/json'
-                },
-                ...item
-            }))
-                .load_http()
-
             await vaporous
+                .eval(item => ({
+                    _http_req_uri: 'https://dummyjson.com/auth/login',
+                    _http_req_method: 'post',
+                    _http_req_body: JSON.stringify(item),
+                    _http_req_headers: {
+                        'content-type': 'application/json'
+                    },
+                    ...item
+                }))
+                .load_http()
                 .eval(event => ({
                     _http_req_uri: 'https:/dummyjson.com/auth/me',
                     _http_req_method: 'get',
@@ -49,12 +44,10 @@ const main = async () => {
                     },
                     _http_req_body: undefined
                 }))
+                .load_http()
                 .parallel(4, vaporous => {
                     return vaporous.load_http()
                 }, { mode: 'dynamic' })
-
-
-            vaporous
                 .table(event => {
                     const user = JSON.parse(event._http_res_body)
                     return {
@@ -92,10 +85,14 @@ const main = async () => {
                 })
 
                 .render()
+                .begin()
+
+            console.log('test')
         }, 5000)
+        .begin()
 
 
-    console.log('done')
+    console.log(vaporous)
 }
 
 main()
