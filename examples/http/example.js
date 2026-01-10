@@ -47,7 +47,7 @@ const main = async () => {
                 .load_http()
                 .parallel(4, vaporous => {
                     return vaporous.load_http()
-                }, { mode: 'dynamic' })
+                }, { mode: 'dynamic', multiThread: true })
                 .table(event => {
                     const user = JSON.parse(event._http_res_body)
                     return {

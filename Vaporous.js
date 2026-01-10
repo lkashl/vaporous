@@ -64,7 +64,7 @@ class Vaporous {
     }
 
     _shouldQueue(methodName) {
-        const nonQueueable = ['begin', 'clone', 'destroy', '_shouldQueue', 'valueOf', 'toString']
+        const nonQueueable = ['begin', 'clone', 'serialise', 'destroy', '_shouldQueue', 'valueOf', 'toString']
         return !nonQueueable.includes(methodName)
     }
 
@@ -143,6 +143,10 @@ class Vaporous {
      */
     async begin() {
         return await core.begin.call(this);
+    }
+
+    serialise({ } = {}) {
+        return core.serialise.call(this);
     }
 
     /**

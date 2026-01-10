@@ -1,3 +1,8 @@
+const { Worker } = require('worker_threads');
+const path = require('path');
+
+let workers = []
+
 async function parallel(target, funct, { mode = "dynamic", multiThread = false } = {}) {
 
     let progress;
@@ -33,19 +38,56 @@ async function parallel(target, funct, { mode = "dynamic", multiThread = false }
             const instance = this.clone()
             instance.events = thisEvent
 
-
             const task = await funct(instance)
             tasks.push(task)
             await processSingleThread()
         }
 
-        const processMultiThread = async (event) => {
+        const processMultiThread = async (worker) => {
+            if (eventList.length === 0) return;
+            const thisEvent = eventList.splice(0, 1)
+            const instance = this.clone({ deep: true })
+            instance.events = thisEvent
+            const message = instance.serialise()
 
+            const task = await new Promise((resolve, reject) => {
+                worker.on('message', (result) => {
+                    instance.events = result.events
+                    resolve(result);
+                });
+
+                worker.on('error', (error) => {
+                    worker.terminate();
+                    reject(error);
+                });
+
+                worker.on('exit', (code) => {
+                    if (code !== 0) {
+                        reject(new Error(`Worker stopped with exit code ${code}`));
+                    }
+                });
+
+                worker.postMessage(message);
+            })
+
+            tasks.push(task)
+
+            await processMultiThread(worker);
         }
 
         const streams = []
         for (let i = 0; i < target; i++) {
-            streams.push(processSingleThread())
+            if (multiThread) {
+
+                const workerPath = path.join(__dirname, 'processing.worker.js');
+
+                if (!workers[i]) workers[i] = new Worker(workerPath);
+                const worker = workers[i];
+
+                streams.push(processMultiThread(worker))
+            } else {
+                streams.push(processSingleThread())
+            }
         }
 
         await Promise.all(streams)
@@ -56,16 +98,16 @@ async function parallel(target, funct, { mode = "dynamic", multiThread = false }
 
     progress = await Promise.all(progress)
 
-    const newLength = progress.reduce((prev, curr) => curr.events.length + prev, 0)
-
-    const events = new Array(newLength)
-
-    let curr = 0;
+    // Collate all events from the processed instances
+    const events = []
     progress.forEach(instance => {
-        events[curr] = instance.events[curr]
-        curr++
+        if (instance && instance.events) {
+            events.push(...instance.events)
+        }
     })
 
+    // Update this instance's events with the collated results
+    this.events = events
     return this;
 }
 
@@ -82,7 +124,6 @@ async function interval(funct, intervalTiming, options) {
     const loop = async () => {
         const cloned = reference.clone({ deep: true })
 
-        console.log(cloned)
         await funct(cloned)
         await sleep(intervalTiming)
         await loop()

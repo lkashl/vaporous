@@ -59,6 +59,13 @@ module.exports = {
         return cloneInstance
     },
 
+    serialise() {
+        return {
+            events: this.events,
+            processingQueue: this.processingQueue,
+        }
+    },
+
     destroy() {
         return this;
     }
