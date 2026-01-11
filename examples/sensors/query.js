@@ -5,12 +5,10 @@ generateData()
 
 const main = async () => {
 
-    const sensors = await new Vaporous()
+    await new Vaporous()
         // Load folder and files
         .fileScan(dataFolder)
         .fileLoad('\n', event => JSON.parse(event))
-
-    sensors
         .flatten()
 
         // Parse timestamps and make variables accessible
@@ -85,7 +83,7 @@ const main = async () => {
             tab: "Example Table",
             columns: 3,
         })
-        .build('Temp and energy - Device: ', 'LineChart', {
+        .build('Temp and energy - Device: ', 'Line', {
             tab: "Example Graphs",
             columns: 3,
             y1Type: 'bar',
@@ -97,6 +95,7 @@ const main = async () => {
         })
 
         .render('./sensors.html')
+        .begin()
 }
 
 main()

@@ -37,7 +37,6 @@ class Vaporous {
         this.processingQueue = []
 
         this._isExecuting = false
-        this._executionCount = 0
 
         // Return a proxy that intercepts method calls
         return new Proxy(this, {
@@ -50,7 +49,7 @@ class Vaporous {
 
                 // If it's a function  we should queue it
                 if (typeof value === 'function'
-                    && target._executionCount === 0
+                    && !target._isExecuting
                     && target._shouldQueue(prop)) {
                     return function (...args) {
                         target.processingQueue.push([prop, args])

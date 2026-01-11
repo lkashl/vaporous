@@ -27,16 +27,16 @@ module.exports = {
         return this;
     },
 
-    async begin() {
+    async begin(stageName = '') {
+        if (stageName) stageName = `[${stageName}] `
         this._isExecuting = true
-        this._executionCount += 1
 
-        for (let task of this.processingQueue) {
-            const [method, params] = task
+
+        for (let taskNum in this.processingQueue) {
+            const [method, params] = this.processingQueue[taskNum]
             const start = new Date()
-            console.log(`BEGIN: ${method}`)
             await this[method](...params)
-            console.log(`END: ${method}`, new Date() - start + ' ms')
+            if (this.loggers?.perf) this.loggers.perf(1, `${stageName} OP: ${taskNum} - ${method} - took ${new Date() - start + ' ms'}`)
         }
 
         this.processingQueue = []
@@ -49,7 +49,7 @@ module.exports = {
         const cloneInstance = new Vaporous()
 
         const excludeStructualClone = ['loggers', 'intervals']
-        const excludeCompletely = ['processingQueue', '_isExecuting', '_executionCount']
+        const excludeCompletely = ['processingQueue', '_isExecuting']
 
         Object.keys(this).forEach(key => {
             if (excludeCompletely.includes(key)) return;
