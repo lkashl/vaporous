@@ -36,7 +36,7 @@ module.exports = {
             const [method, params] = this.processingQueue[taskNum]
             const start = new Date()
             await this[method](...params)
-            if (this.loggers?.perf) this.loggers.perf(1, `${stageName} OP: ${taskNum} - ${method} - took ${new Date() - start + ' ms'}`)
+            if (this.loggers?.perf) this.loggers.perf('log', `${stageName} OP: ${taskNum} - ${method} - took ${new Date() - start + ' ms'}`)
         }
 
         this.processingQueue = []
