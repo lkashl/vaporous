@@ -232,7 +232,7 @@ module.exports = {
                     ticks: {
                         display: xTicks
                     },
-
+                    stacked: y1Stacked
                 }
             }
 
