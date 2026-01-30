@@ -1,8 +1,6 @@
 const { Worker } = require('worker_threads');
 const path = require('path');
 
-let workers = []
-
 async function parallel(target, { multiThread = false } = {}, callbackPath) {
 
     let workers = []
@@ -93,6 +91,7 @@ async function parallel(target, { multiThread = false } = {}, callbackPath) {
 
     const eventsCumulative = []
     progress.forEach(events => {
+        if (events instanceof require('../Vaporous').Vaporous) events = events.serialise().events
         eventsCumulative.push(...events)
     })
 
@@ -108,13 +107,19 @@ const sleep = (interval) => {
 }
 
 async function interval(funct, intervalTiming, options) {
-    this.intervals.push(this)
-    const reference = this.intervals.at(-1)
+    const { Vaporous } = require('../Vaporous')
+    const ref = this;
+    // this.intervals.push(this)
+    // const reference = this.intervals.at(-1)
 
     const loop = async () => {
-        const cloned = reference.clone({ deep: true })
+        const target = new Vaporous({ loggers: ref.loggers })
 
-        await funct(cloned)
+        target.events = structuredClone(ref.events);
+
+        await funct(target)
+        await target.begin()
+
         await sleep(intervalTiming)
         await loop()
     }

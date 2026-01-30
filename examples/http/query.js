@@ -45,9 +45,9 @@ const main = async () => {
                     _http_req_body: undefined
                 }))
                 .load_http()
-                .parallel(4, vaporous => {
+                .parallel(4, {}, vaporous => {
                     return vaporous.load_http()
-                }, { mode: 'dynamic', multiThread: true })
+                })
                 .table(event => {
                     const user = JSON.parse(event._http_res_body)
                     return {
@@ -85,9 +85,6 @@ const main = async () => {
                 })
 
                 .render()
-                .begin()
-
-            console.log('test')
         }, 5000)
         .begin()
 
