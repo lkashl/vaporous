@@ -58,13 +58,13 @@ module.exports = {
     },
 
     stats(...args) {
-        this.manageEntry()
+
         this.events = this._stats(args, this.events).arr
-        return this.manageExit()
+        return this;
     },
 
     eventstats(...args) {
-        this.manageEntry()
+
         const stats = this._stats(args, this.events)
 
         this.events.forEach(event => {
@@ -73,7 +73,7 @@ module.exports = {
             Object.assign(event, stats.map[key])
         })
 
-        return this.manageExit()
+        return this;
     },
 
     _streamstats(...args) {
@@ -128,14 +128,14 @@ module.exports = {
     },
 
     streamstats(...args) {
-        this.manageEntry()
+
         this._streamstats(...args)
-        return this.manageExit()
+        return this;
     },
 
     delta(field, remapField, ...bys) {
-        this.manageEntry()
+
         this._streamstats(new Aggregation(field, 'range', remapField), new Window(2), ...bys)
-        return this.manageExit()
+        return this;
     }
 }

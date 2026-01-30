@@ -12,7 +12,7 @@ const document = {}
 module.exports = {
     toGraph(x, y, series, trellis = false) {
 
-        this.manageEntry()
+
         if (!(y instanceof Array)) y = [y]
         if (!(x instanceof Array)) x = [x]
 
@@ -97,16 +97,17 @@ module.exports = {
         }
 
         this.graphFlags.push(graphFlags)
-        return this.manageExit()
+        return this;
     },
 
-    build(name, type, { tab = 'Default', columns = 2, y2, y1Type, y2Type, y1Stacked, y2Stacked, sortX = 'asc', xTicks = false, trellisAxis = "shared", legend, extendedDescription } = {}) {
-        this.manageEntry()
+    build(name, type, { tab = 'Default', columns = 2, y2, y1Type, y2Type, y1Stacked, y2Stacked, sortX = 'asc', xTicks = false, trellisAxis = "shared", legend, extendedDescription, fillX, chartJSOptions = {} } = {}) {
+
 
         const visualisationOptions = { tab, columns, extendedDescription }
 
 
         let bounds = {}
+
 
         const isY2 = (data) => {
             let y2Mapped = false;
@@ -122,6 +123,11 @@ module.exports = {
         }
 
         const xPrimary = this.graphFlags.at(-1).xPrimary
+
+        // Check whether x is categorical
+        // Ideally this should be explicitly defined, but we will use inference by the first data type in the event it is not
+        let xCategorical = typeof this.events[0][xPrimary] !== "number"
+        if (xTicks === undefined && xCategorical) xTicks = true
 
         const graphData = this.events.map((trellis, i) => {
 
@@ -183,12 +189,14 @@ module.exports = {
 
                     if (type === 'Scatter') {
                         base.showLine = false
-                        base.pointRadius = 8
-                        base.pointStyle = 'rect'
+                        base.pointRadius = 4
+                        base.pointStyle = 'circ'
                     } else if (type === 'Area') {
                         base.fill = 'origin'
                     } else if (type === 'Line') {
                         base.pointRadius = 0;
+                    } else {
+                        throw new Error('Visualisation of "' + type + '" is not supported')
                     }
                     return base
                 })
@@ -205,8 +213,11 @@ module.exports = {
                     stacked: y1Stacked,
                     min: sharedAxisArr(),
                     max: sharedAxisArr(),
-                },
-                x: {
+                }
+            }
+
+            if (!xCategorical) {
+                scales.x = {
                     type: 'linear',
                     stacked: y1Stacked,
                     ticks: {
@@ -215,7 +226,16 @@ module.exports = {
                     min: sharedAxisArr(),
                     max: sharedAxisArr(),
                 }
+            } else {
+                scales.x = {
+                    type: 'category',
+                    ticks: {
+                        display: xTicks
+                    },
+                    stacked: y1Stacked
+                }
             }
+
 
             if (y2WasMapped) {
                 scales.y2 = {
@@ -233,6 +253,30 @@ module.exports = {
                 if (y2Stacked) scales.x.stacked = true
             }
 
+            if (fillX) {
+                const start = fillX.start !== undefined ? fillX.start : Math.min(...data.labels)
+                const end = fillX.end !== undefined ? fillX.end : Math.max(...data.labels)
+
+                const labels = []
+                const datasets = data.datasets.map(dataset => ({ ...dataset, data: [] }))
+
+                for (let i = start; i < end; i += fillX.unit) {
+                    const exists = data.labels.findIndex(label => label === i)
+
+                    if (exists !== -1) {
+                        data.datasets.forEach((dataset, j) => {
+                            datasets[j].data[i] = dataset.data[exists]
+                        })
+                    } else {
+                        datasets.forEach(dataset => dataset.data[i] = 0)
+                    }
+                    labels.push(i)
+                }
+
+                data.labels = labels;
+                data.datasets = datasets;
+            }
+
             return {
                 type: 'line',
                 data: data,
@@ -248,7 +292,8 @@ module.exports = {
                             display: false,
                             text: titleText
                         }
-                    }
+                    },
+                    ...chartJSOptions
                 }
             }
         })
@@ -263,7 +308,10 @@ module.exports = {
 
                 Object.keys(bounds).forEach(bound => {
                     let axis = isY2(bound) ? 'y2' : 'y'
-                    if (bound === xPrimary) axis = 'x';
+                    if (bound === xPrimary) {
+                        if (xCategorical) return;
+                        axis = 'x';
+                    }
 
                     const thisAxis = trellisGraph.options.scales[axis]
 
@@ -273,6 +321,9 @@ module.exports = {
                 })
 
                 if (trellisGraph.options) Object.keys(trellisGraph.options.scales).forEach(axis => {
+
+                    if (axis === "x" && xCategorical) return;
+
                     const scale = trellisGraph.options.scales[axis]
                     // Sort our axis
                     scale.min = scale.min.sort((a, b) => a - b)
@@ -318,11 +369,11 @@ module.exports = {
             this.tabs = this.tabs.sort((a, b) => a.localeCompare(b))
         }
 
-        return this.manageExit()
+        return this;
     },
 
     render(location = './Vaporous_generation.html', { tabOrder } = {}) {
-        this.manageEntry()
+
 
         const classSafe = (name) => name.replace(/[^a-zA-Z0-9]/g, "_")
 
@@ -378,6 +429,7 @@ module.exports = {
                     // Need to do column defintiions here
                     parentHolder.appendChild(tableDiv)
                     new agGrid.createGrid(tableDiv, {
+                        suppressFieldDotNotation: true,
                         rowData: trellisData.rowData,
                         // Columns to be displayed (Should match rowData properties)
                         columnDefs: trellisData.columnDefinitions,
@@ -387,7 +439,8 @@ module.exports = {
                             sortable: true,
                             filter: true
                         },
-                        domLayout: 'autoHeight'
+                        domLayout: 'autoHeight',
+                        enableCellTextSelection: true,
                         // suppressHorizontalScroll: false,
                         // autoSizeStrategy: {
                         //     type: 'fitGridWidth',
@@ -481,6 +534,6 @@ module.exports = {
         `)
         console.log('File ouput created ', path.resolve(filePath))
         if (this.totalTime) console.log("File completed in " + this.totalTime)
-        return this.manageExit()
+        return this;
     }
 }

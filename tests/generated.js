@@ -4,6 +4,16 @@ const { Vaporous, By, Aggregation, Window } = require("../Vaporous")
 const fs = require('fs')
 const path = require('path')
 
+const testsPassing = [], testsFailing = []
+const recordTestResult = (testName, passed, message) => {
+    if (passed) {
+        testsPassing.push(testName)
+        if (message) console.log(`✓ ${testName} ${message}`)
+    } else {
+        testsFailing.push(testName)
+    }
+}
+
 // Generate comprehensive test data
 const generateTestData = () => {
     const dataDir = path.join(__dirname, 'testData')
@@ -38,74 +48,66 @@ const main = async () => {
     console.log('\n=== COMPREHENSIVE VAPOROUS TEST SUITE ===\n')
 
     const dataFolder = generateTestData()
-    let testsPassed = 0
-    let totalTests = 0
 
     // ===================================================================
-    // TEST 1: Constructor and Basic Properties
+    // Constructor and Basic Properties
     // ===================================================================
-    console.log('TEST 1: Constructor and Basic Properties')
-    totalTests++
     const vaporous = new Vaporous({
         loggers: {
             perf: (level, event) => console.log(`[PERF] ${event}`)
         }
     })
 
-    if (vaporous.events.length === 0 &&
+    const test1Passed = vaporous.events.length === 0 &&
         vaporous.visualisations.length === 0 &&
         vaporous.checkpoints && typeof vaporous.checkpoints === 'object' &&
-        vaporous.savedMethods && typeof vaporous.savedMethods === 'object') {
-        console.log('✓ Constructor initialized correctly\n')
-        testsPassed++
-    }
+        vaporous.savedMethods && typeof vaporous.savedMethods === 'object'
+
+    recordTestResult('Constructor and Basic Properties', test1Passed, 'Constructor initialized correctly\n')
 
     // ===================================================================
-    // TEST 2: Append Method - Adding Data Manually
+    // Append Method - Adding Data Manually
     // ===================================================================
-    console.log('TEST 2: Append Method')
-    totalTests++
     const initialData = [
         { id: 1, value: 10, category: 'X' },
         { id: 2, value: 20, category: 'Y' }
     ]
 
-    vaporous.append(initialData)
+    await vaporous
+        .append(initialData)
         .assert((event, i, { expect }) => {
             expect(vaporous.events.length === 2)
             expect(event.id !== undefined)
             expect(event.value !== undefined)
             expect(event.category !== undefined)
         })
+        .begin()
 
-    if (vaporous.events.length === 2) {
-        console.log('✓ Append method works correctly\n')
-        testsPassed++
-    }
+    const test2Passed = vaporous.events.length === 2
+    recordTestResult('Append Method', test2Passed, 'Append Method works correctly')
+
 
     // ===================================================================
-    // TEST 3: Filter Method
+    // Filter Method
     // ===================================================================
-    console.log('TEST 3: Filter Method')
-    totalTests++
-    vaporous.filter(event => event.category === 'X')
+    await vaporous
+        .filter(event => event.category === 'X')
         .assert((event, i, { expect }) => {
             expect(vaporous.events.length === 1)
             expect(event.category === 'X')
             expect(event.id === 1)
         })
+        .begin()
 
-    if (vaporous.events.length === 1 && vaporous.events[0].category === 'X') {
-        console.log('✓ Filter method works correctly\n')
-        testsPassed++
-    }
+    const test3Passed = vaporous.events.length === 1 && vaporous.events[0].category === 'X'
+    recordTestResult('Filter Method', test3Passed, 'Filter Method works correctly')
+
 
     // ===================================================================
-    // TEST 4: Eval Method - Data Transformation
+    // Eval Method - Data Transformation
     // ===================================================================
-    console.log('TEST 4: Eval Method - Data Transformation')
-    totalTests++
-    vaporous.append([{ id: 3, value: 30, category: 'Z' }])
+    await vaporous
+        .append([{ id: 3, value: 30, category: 'Z' }])
         .eval(event => {
             return {
                 doubled: event.value * 2,
@@ -120,58 +122,57 @@ const main = async () => {
                 expect(event.computed === 11)
             }
         })
+        .begin()
 
-    if (vaporous.events[0].doubled === 20) {
-        console.log('✓ Eval method transforms data correctly\n')
-        testsPassed++
-    }
+    const test4Passed = vaporous.events[0].doubled === 20
+    recordTestResult('Eval Method - Data Transformation', test4Passed, 'Eval Method - Data Transformation works correctly')
+
 
     // ===================================================================
-    // TEST 5: Sort Method
+    // Sort Method
     // ===================================================================
-    console.log('TEST 5: Sort Method - Ascending and Descending')
-    totalTests++
-    vaporous.sort('asc', 'value')
+    await vaporous
+        .sort('asc', 'value')
         .assert((event, i, { expect }) => {
             if (i === 0) expect(event.value === 10)
             if (i === 1) expect(event.value === 30)
         })
+        .begin()
 
-    vaporous.sort('dsc', 'value')
+    await vaporous
+        .sort('dsc', 'value')
         .assert((event, i, { expect }) => {
             if (i === 0) expect(event.value === 30)
             if (i === 1) expect(event.value === 10)
         })
+        .begin()
 
-    if (vaporous.events[0].value === 30) {
-        console.log('✓ Sort method works correctly\n')
-        testsPassed++
-    }
+    const test5Passed = vaporous.events[0].value === 30
+    recordTestResult('Sort Method - Ascending and Descending', test5Passed, 'Sort Method - Ascending and Descending works correctly')
+
 
     // ===================================================================
-    // TEST 6: Rename Method
+    // Rename Method
     // ===================================================================
-    console.log('TEST 6: Rename Method')
-    totalTests++
-    vaporous.rename(['value', 'amount'], ['category', 'type'])
+    await vaporous
+        .rename(['value', 'amount'], ['category', 'type'])
         .assert((event, i, { expect }) => {
             expect(event.amount !== undefined)
             expect(event.type !== undefined)
             expect(event.value === undefined)
             expect(event.category === undefined)
         })
+        .begin()
 
-    if (vaporous.events[0].amount && vaporous.events[0].type) {
-        console.log('✓ Rename method works correctly\n')
-        testsPassed++
-    }
+    const test6Passed = vaporous.events[0].amount && vaporous.events[0].type
+    recordTestResult('Rename Method', test6Passed, 'Rename Method works correctly')
+
 
     // ===================================================================
-    // TEST 7: Bin Method
+    // Bin Method
     // ===================================================================
-    console.log('TEST 7: Bin Method - Numerical Binning')
-    totalTests++
-    vaporous.eval(event => ({ rawValue: event.amount }))
+    await vaporous
+        .eval(event => ({ rawValue: event.amount }))
         .bin('amount', 10)
         .assert((event, i, { expect }) => {
             expect(event.amount % 10 === 0)
@@ -179,43 +180,42 @@ const main = async () => {
             const expectedBin = Math.floor(event.rawValue / 10) * 10
             expect(event.amount === expectedBin)
         })
+        .begin()
 
-    if (vaporous.events.every(e => e.amount % 10 === 0)) {
-        console.log('✓ Bin method works correctly\n')
-        testsPassed++
-    }
+    const test7Passed = vaporous.events.every(e => e.amount % 10 === 0)
+    recordTestResult('Bin Method - Numerical Binning', test7Passed, 'Bin Method - Numerical Binning works correctly')
+
 
     // ===================================================================
-    // TEST 8: Checkpoint Methods - Create, Retrieve, Delete
+    // Checkpoint Methods - Create, Retrieve, Delete
     // ===================================================================
-    console.log('TEST 8: Checkpoint Methods')
-    totalTests++
     const checkpointData = vaporous.events.length
-    vaporous.checkpoint('create', 'testCheckpoint')
+    await vaporous.checkpoint('create', 'testCheckpoint')
         .filter(event => event.id === 1)
         .assert((event, i, { expect }) => {
             expect(vaporous.events.length === 1)
         })
+        .begin()
 
-    vaporous.checkpoint('retrieve', 'testCheckpoint')
+    await vaporous.checkpoint('retrieve', 'testCheckpoint')
         .assert((event, i, { expect }) => {
             expect(vaporous.events.length === checkpointData)
         })
+        .begin()
 
-    vaporous.checkpoint('delete', 'testCheckpoint')
+    await vaporous
+        .checkpoint('delete', 'testCheckpoint')
+        .begin()
 
-    if (vaporous.checkpoints.testCheckpoint === undefined) {
-        console.log('✓ Checkpoint create/retrieve/delete works correctly\n')
-        testsPassed++
-    }
+    const test8Passed = vaporous.checkpoints.testCheckpoint === undefined
+    recordTestResult('Checkpoint Methods', test8Passed, 'Checkpoint Methods works correctly')
+
 
     // ===================================================================
-    // TEST 9: Table Method - Data Restructuring
+    // Table Method - Data Restructuring
     // ===================================================================
-    console.log('TEST 9: Table Method - Data Restructuring')
-    totalTests++
     const appendVaporous = new Vaporous()
-    appendVaporous.append([{ x: 1, y: 2, z: 3 }])
+    await appendVaporous.append([{ x: 1, y: 2, z: 3 }])
         .table(event => ({
             a: event.x,
             b: event.y,
@@ -226,43 +226,41 @@ const main = async () => {
             expect(event.b !== undefined)
             expect(event.original !== undefined)
         })
+        .begin()
 
-    if (appendVaporous.events[0].a !== undefined) {
-        console.log('✓ Table method restructures data correctly\n')
-        testsPassed++
-    }
+    const test9Passed = appendVaporous.events[0].a !== undefined
+    recordTestResult('Table Method - Data Restructuring', test9Passed, 'Table Method - Data Restructuring works correctly')
+
 
     // ===================================================================
-    // TEST 10: Flatten Method
+    // Flatten Method
     // ===================================================================
-    console.log('TEST 10: Flatten Method')
-    totalTests++
     const nestedVaporous = new Vaporous()
-    nestedVaporous.append([
-        [[{ id: 1 }, { id: 2 }], [{ id: 3 }]],
-        [[{ id: 4 }]]
-    ])
+    await nestedVaporous
+        .append([
+            [[{ id: 1 }, { id: 2 }], [{ id: 3 }]],
+            [[{ id: 4 }]]
+        ])
         .flatten(2)
         .assert((event, i, { expect }) => {
             expect(event.id !== undefined)
             expect(typeof event.id === 'number')
         })
+        .begin()
 
-    if (nestedVaporous.events.length === 4) {
-        console.log('✓ Flatten method works correctly\n')
-        testsPassed++
-    }
+    const test10Passed = nestedVaporous.events.length === 4
+    recordTestResult('Flatten Method', test10Passed, 'Flatten Method works correctly')
+
 
     // ===================================================================
-    // TEST 11: MvExpand Method
+    // MvExpand Method
     // ===================================================================
-    console.log('TEST 11: MvExpand Method')
-    totalTests++
     const mvVaporous = new Vaporous()
-    mvVaporous.append([
-        { id: 1, tags: ['a', 'b', 'c'], value: 100 },
-        { id: 2, tags: ['x', 'y'], value: 200 }
-    ])
+    await mvVaporous
+        .append([
+            { id: 1, tags: ['a', 'b', 'c'], value: 100 },
+            { id: 2, tags: ['x', 'y'], value: 200 }
+        ])
         .mvexpand('tags')
         .assert((event, i, { expect }) => {
             expect(typeof event.tags === 'string')
@@ -270,25 +268,24 @@ const main = async () => {
             expect(event.id !== undefined)
             expect(event.value !== undefined)
         })
+        .begin()
 
-    if (mvVaporous.events.length === 5) {
-        console.log('✓ MvExpand method works correctly\n')
-        testsPassed++
-    }
+    const test11Passed = mvVaporous.events.length === 5
+    recordTestResult('MvExpand Method', test11Passed, 'MvExpand Method works correctly')
+
 
     // ===================================================================
-    // TEST 12: Stats Method - Comprehensive Aggregations
+    // Stats Method - Comprehensive Aggregations
     // ===================================================================
-    console.log('TEST 12: Stats Method - All Aggregation Types')
-    totalTests++
     const statsVaporous = new Vaporous()
-    statsVaporous.append([
-        { category: 'A', value: 10, id: 1 },
-        { category: 'A', value: 20, id: 2 },
-        { category: 'A', value: 30, id: 3 },
-        { category: 'B', value: 15, id: 4 },
-        { category: 'B', value: 25, id: 5 }
-    ])
+    await statsVaporous
+        .append([
+            { category: 'A', value: 10, id: 1 },
+            { category: 'A', value: 20, id: 2 },
+            { category: 'A', value: 30, id: 3 },
+            { category: 'B', value: 15, id: 4 },
+            { category: 'B', value: 25, id: 5 }
+        ])
         .stats(
             new Aggregation('value', 'sum', 'totalValue'),
             new Aggregation('value', 'count', 'countValue'),
@@ -331,21 +328,20 @@ const main = async () => {
                 expect(event.rangeValue === 10)
             }
         })
+        .begin()
 
-    if (statsVaporous.events.length === 2) {
-        console.log('✓ Stats method with all aggregation types works correctly\n')
-        testsPassed++
-    }
+    const test12Passed = statsVaporous.events.length === 2
+    recordTestResult('Stats Method - All Aggregation Types', test12Passed, 'Stats Method - All Aggregation Types works correctly')
+
 
     // ===================================================================
-    // TEST 13: Percentile Aggregation
+    // Percentile Aggregation
     // ===================================================================
-    console.log('TEST 13: Percentile Aggregation')
-    totalTests++
     const percentileVaporous = new Vaporous()
-    percentileVaporous.append(
-        Array.from({ length: 100 }, (_, i) => ({ value: i + 1 }))
-    )
+    await percentileVaporous
+        .append(
+            Array.from({ length: 100 }, (_, i) => ({ value: i + 1 }))
+        )
         .stats(
             new Aggregation('value', 'percentile', 'p50', 50),
             new Aggregation('value', 'percentile', 'p95', 95),
@@ -356,24 +352,23 @@ const main = async () => {
             expect(event.p95 >= 94 && event.p95 <= 96)
             expect(event.p99 >= 98 && event.p99 <= 100)
         })
+        .begin()
 
-    if (percentileVaporous.events.length === 1) {
-        console.log('✓ Percentile aggregation works correctly\n')
-        testsPassed++
-    }
+    const test13Passed = percentileVaporous.events.length === 1
+    recordTestResult('Percentile Aggregation', test13Passed, 'Percentile Aggregation works correctly')
+
 
     // ===================================================================
-    // TEST 14: Eventstats Method
+    // Eventstats Method
     // ===================================================================
-    console.log('TEST 14: Eventstats Method')
-    totalTests++
     const eventstatsVaporous = new Vaporous()
-    eventstatsVaporous.append([
-        { category: 'A', value: 10 },
-        { category: 'A', value: 20 },
-        { category: 'B', value: 15 },
-        { category: 'B', value: 25 }
-    ])
+    await eventstatsVaporous
+        .append([
+            { category: 'A', value: 10 },
+            { category: 'A', value: 20 },
+            { category: 'B', value: 15 },
+            { category: 'B', value: 25 }
+        ])
         .eventstats(
             new Aggregation('value', 'sum', 'categorySum'),
             new Aggregation('value', 'count', 'categoryCount'),
@@ -393,25 +388,24 @@ const main = async () => {
                 expect(event.categoryCount === 2)
             }
         })
+        .begin()
 
-    if (eventstatsVaporous.events.length === 4) {
-        console.log('✓ Eventstats method works correctly\n')
-        testsPassed++
-    }
+    const test14Passed = eventstatsVaporous.events.length === 4
+    recordTestResult('Eventstats Method', test14Passed, 'Eventstats Method works correctly')
+
 
     // ===================================================================
-    // TEST 15: Streamstats Method with Window
+    // Streamstats Method with Window
     // ===================================================================
-    console.log('TEST 15: Streamstats Method with Window')
-    totalTests++
     const streamstatsVaporous = new Vaporous()
-    streamstatsVaporous.append([
-        { id: 1, value: 10 },
-        { id: 2, value: 20 },
-        { id: 3, value: 30 },
-        { id: 4, value: 40 },
-        { id: 5, value: 50 }
-    ])
+    await streamstatsVaporous
+        .append([
+            { id: 1, value: 10 },
+            { id: 2, value: 20 },
+            { id: 3, value: 30 },
+            { id: 4, value: 40 },
+            { id: 5, value: 50 }
+        ])
         .streamstats(
             new Aggregation('value', 'sum', 'runningSum'),
             new Aggregation('value', 'count', 'runningCount'),
@@ -439,25 +433,24 @@ const main = async () => {
                 expect(event.windowList.length === 3)
             }
         })
+        .begin()
 
-    if (streamstatsVaporous.events[4].runningSum === 120) {
-        console.log('✓ Streamstats with Window works correctly\n')
-        testsPassed++
-    }
+    const test15Passed = streamstatsVaporous.events[4].runningSum === 120
+    recordTestResult('Streamstats Method with Window', test15Passed, 'Streamstats Method with Window works correctly')
+
 
     // ===================================================================
-    // TEST 16: Streamstats Method with By clause
+    // Streamstats Method with By clause
     // ===================================================================
-    console.log('TEST 16: Streamstats Method with By clause')
-    totalTests++
     const streamstatsByVaporous = new Vaporous()
-    streamstatsByVaporous.append([
-        { category: 'A', value: 10, seq: 1 },
-        { category: 'A', value: 20, seq: 2 },
-        { category: 'B', value: 15, seq: 3 },
-        { category: 'A', value: 30, seq: 4 },
-        { category: 'B', value: 25, seq: 5 }
-    ])
+    await streamstatsByVaporous
+        .append([
+            { category: 'A', value: 10, seq: 1 },
+            { category: 'A', value: 20, seq: 2 },
+            { category: 'B', value: 15, seq: 3 },
+            { category: 'A', value: 30, seq: 4 },
+            { category: 'B', value: 25, seq: 5 }
+        ])
         .streamstats(
             new Aggregation('value', 'sum', 'categoryRunningSum'),
             new Aggregation('value', 'list', 'categoryList'),
@@ -483,24 +476,23 @@ const main = async () => {
                 expect(event.categoryList.length === 1)
             }
         })
+        .begin()
 
-    if (streamstatsByVaporous.events[3].categoryRunningSum === 30) {
-        console.log('✓ Streamstats with By clause works correctly\n')
-        testsPassed++
-    }
+    const test16Passed = streamstatsByVaporous.events[3].categoryRunningSum === 30
+    recordTestResult('Streamstats Method with By clause', test16Passed, 'Streamstats Method with By clause works correctly')
+
 
     // ===================================================================
-    // TEST 17: Delta Method
+    // Delta Method
     // ===================================================================
-    console.log('TEST 17: Delta Method')
-    totalTests++
     const deltaVaporous = new Vaporous()
-    deltaVaporous.append([
-        { time: 0, category: 'A' },
-        { time: 5, category: 'A' },
-        { time: 12, category: 'A' },
-        { time: 20, category: 'A' }
-    ])
+    await deltaVaporous
+        .append([
+            { time: 0, category: 'A' },
+            { time: 5, category: 'A' },
+            { time: 12, category: 'A' },
+            { time: 20, category: 'A' }
+        ])
         .delta('time', 'timeDelta', new By('category'))
         .assert((event, i, { expect }) => {
             expect(event.timeDelta !== undefined)
@@ -518,19 +510,17 @@ const main = async () => {
                 expect(event.timeDelta === 8)
             }
         })
+        .begin()
 
-    if (deltaVaporous.events[1].timeDelta === 5) {
-        console.log('✓ Delta method works correctly\n')
-        testsPassed++
-    }
+    const test17Passed = deltaVaporous.events[1].timeDelta === 5
+    recordTestResult('Delta Method', test17Passed, 'Delta Method works correctly')
+
 
     // ===================================================================
-    // TEST 18: FilterIntoCheckpoint Method
+    // FilterIntoCheckpoint Method
     // ===================================================================
-    console.log('TEST 18: FilterIntoCheckpoint Method')
-    totalTests++
     const filterCheckpointVaporous = new Vaporous()
-    filterCheckpointVaporous.append([
+    await filterCheckpointVaporous.append([
         { id: 1, status: 'active', value: 10 },
         { id: 2, status: 'inactive', value: 20 },
         { id: 3, status: 'active', value: 30 },
@@ -541,25 +531,24 @@ const main = async () => {
             expect(event.status === 'active')
             expect(filterCheckpointVaporous.events.length === 2)
         })
+        .begin()
 
     filterCheckpointVaporous.checkpoint('retrieve', 'inactiveItems')
         .assert((event, i, { expect }) => {
             expect(event.status === 'inactive')
             expect(filterCheckpointVaporous.events.length === 2)
         })
+        .begin()
 
-    if (filterCheckpointVaporous.events.length === 2) {
-        console.log('✓ FilterIntoCheckpoint method works correctly\n')
-        testsPassed++
-    }
+    const test18Passed = filterCheckpointVaporous.events.length === 2
+    recordTestResult('FilterIntoCheckpoint Method', test18Passed, 'FilterIntoCheckpoint Method works correctly')
+
 
     // ===================================================================
-    // TEST 19: ParseTime Method
+    // ParseTime Method
     // ===================================================================
-    console.log('TEST 19: ParseTime Method')
-    totalTests++
     const parseTimeVaporous = new Vaporous()
-    parseTimeVaporous.append([
+    await parseTimeVaporous.append([
         { timestamp: '2024-01-01T10:00:00' },
         { timestamp: '2024-01-01T11:00:00' },
         { timestamp: '2024-01-01T12:00:00' }
@@ -573,19 +562,17 @@ const main = async () => {
         .assert((event, i, { expect }) => {
             expect(event.timestamp % 3600000 === 0)
         })
+        .begin()
 
-    if (typeof parseTimeVaporous.events[0].timestamp === 'number') {
-        console.log('✓ ParseTime method works correctly\n')
-        testsPassed++
-    }
+    const test19Passed = typeof parseTimeVaporous.events[0].timestamp === 'number'
+    recordTestResult('ParseTime Method', test19Passed, 'ParseTime Method works correctly')
+
 
     // ===================================================================
-    // TEST 20: Method - Create, Retrieve, Delete
+    // Method - Create, Retrieve, Delete
     // ===================================================================
-    console.log('TEST 20: Method - Create, Retrieve, Delete')
-    totalTests++
     const methodVaporous = new Vaporous()
-    methodVaporous.append([
+    await methodVaporous.append([
         { value: 10 },
         { value: 20 }
     ])
@@ -600,21 +587,18 @@ const main = async () => {
             if (event.value === 10) expect(event.doubled === 30)
             if (event.value === 20) expect(event.doubled === 60)
         })
+        .method('delete', 'doubleValues')
+        .begin()
 
-    methodVaporous.method('delete', 'doubleValues')
+    const test20Passed = methodVaporous.savedMethods.doubleValues === undefined
+    recordTestResult('Method - Create, Retrieve, Delete', test20Passed, 'Method - Create, Retrieve, Delete works correctly')
 
-    if (methodVaporous.savedMethods.doubleValues === undefined) {
-        console.log('✓ Method create/retrieve/delete works correctly\n')
-        testsPassed++
-    }
 
     // ===================================================================
-    // TEST 21: Complex Pipeline - Multiple Operations
+    // Complex Pipeline - Multiple Operations
     // ===================================================================
-    console.log('TEST 21: Complex Pipeline with Multiple Operations')
-    totalTests++
     const complexVaporous = new Vaporous()
-    complexVaporous.append([
+    await complexVaporous.append([
         { id: 1, value: 100, category: 'A', tags: ['x', 'y'] },
         { id: 2, value: 200, category: 'B', tags: ['y', 'z'] },
         { id: 3, value: 150, category: 'A', tags: ['x'] },
@@ -634,8 +618,9 @@ const main = async () => {
             expect(event.totalDoubled !== undefined)
             expect(event.count !== undefined)
         })
+        .begin()
 
-    complexVaporous.checkpoint('retrieve', 'original')
+    await complexVaporous.checkpoint('retrieve', 'original')
         .mvexpand('tags')
         .stats(
             new Aggregation('value', 'sum', 'totalValue'),
@@ -645,34 +630,30 @@ const main = async () => {
             expect(event.tags !== undefined)
             expect(event.totalValue !== undefined)
         })
+        .begin()
 
-    if (complexVaporous.events.length === 3) {
-        console.log('✓ Complex pipeline with multiple operations works correctly\n')
-        testsPassed++
-    }
+    const test21Passed = complexVaporous.events.length === 3
+    recordTestResult('Complex Pipeline with Multiple Operations', test21Passed, 'Complex Pipeline with Multiple Operations works correctly')
+
 
     // ===================================================================
-    // TEST 22: File Operations - FileScan
+    // File Operations - FileScan
     // ===================================================================
-    console.log('TEST 22: File Operations - FileScan')
-    totalTests++
     const fileVaporous = new Vaporous()
     await fileVaporous.fileScan(dataFolder)
         .assert((event, i, { expect }) => {
             expect(event._fileInput !== undefined)
             expect(typeof event._fileInput === 'string')
         })
+        .begin()
 
-    if (fileVaporous.events.length > 0) {
-        console.log('✓ FileScan method works correctly\n')
-        testsPassed++
-    }
+    const test22Passed = fileVaporous.events.length > 0
+    recordTestResult('File Operations - FileScan', test22Passed, 'File Operations - FileScan works correctly')
+
 
     // ===================================================================
-    // TEST 23: CSV Load
+    // CSV Load
     // ===================================================================
-    console.log('TEST 23: CSV Load')
-    totalTests++
     const csvVaporous = new Vaporous()
     await csvVaporous.fileScan(dataFolder)
         .filter(event => event._fileInput.endsWith('.csv'))
@@ -683,7 +664,6 @@ const main = async () => {
             timestamp: data.timestamp,
             nested_value: parseInt(data.nested_value)
         }))
-    csvVaporous
         .flatten()
         .assert((event, i, { expect }) => {
             expect(event.id !== undefined)
@@ -693,23 +673,20 @@ const main = async () => {
             expect(typeof event.id === 'number')
             expect(['A', 'B'].includes(event.category))
         })
+        .begin()
 
-    if (csvVaporous.events.length === 5) {
-        console.log('✓ CSV Load method works correctly\n')
-        testsPassed++
-    }
+    const test23Passed = csvVaporous.events.length === 5
+    recordTestResult('CSV Load', test23Passed, 'CSV Load works correctly')
+
 
     // ===================================================================
-    // TEST 24: File Load (JSON)
+    // File Load (JSON)
     // ===================================================================
-    console.log('TEST 24: File Load (JSON)')
-    totalTests++
     const jsonVaporous = new Vaporous()
     await jsonVaporous.fileScan(dataFolder)
         .filter(event => event._fileInput.endsWith('.json'))
         .fileLoad('\n', line => JSON.parse(line))
-
-    jsonVaporous.flatten()
+        .flatten()
         .assert((event, i, { expect }) => {
             expect(event.sensor !== undefined)
             expect(event.reading !== undefined)
@@ -717,41 +694,40 @@ const main = async () => {
             expect(event._fileInput !== undefined)
             expect(typeof event.reading === 'number')
         })
+        .begin()
 
-    if (jsonVaporous.events.length === 4) {
-        console.log('✓ File Load (JSON) method works correctly\n')
-        testsPassed++
-    }
+    const test24Passed = jsonVaporous.events.length === 4
+    recordTestResult('File Load (JSON)', test24Passed, 'File Load (JSON) works correctly')
+
 
     // ===================================================================
-    // TEST 25: WriteFile and Output
+    // WriteFile and Output
     // ===================================================================
-    console.log('TEST 25: WriteFile Method')
-    totalTests++
     const outputVaporous = new Vaporous()
-    outputVaporous.append([
+    await outputVaporous.append([
         { id: 1, value: 100 },
         { id: 2, value: 200 }
     ])
         .writeFile('test_output.json')
+        .begin()
 
     const fileExists = fs.existsSync('./test_output.json')
+    let test25Passed = false
     if (fileExists) {
         const content = JSON.parse(fs.readFileSync('./test_output.json', 'utf8'))
-        if (content.length === 2 && content[0].id === 1) {
-            console.log('✓ WriteFile method works correctly\n')
-            testsPassed++
+        test25Passed = content.length === 2 && content[0].id === 1
+        if (test25Passed) {
             fs.unlinkSync('./test_output.json')
         }
     }
+    recordTestResult('WriteFile Method', test25Passed, 'WriteFile Method works correctly')
+
 
     // ===================================================================
-    // TEST 26: Visualization Methods - toGraph and build
+    // Visualization Methods - toGraph and build
     // ===================================================================
-    console.log('TEST 26: Visualization Methods - toGraph and build')
-    totalTests++
     const graphVaporous = new Vaporous()
-    graphVaporous.append([
+    await graphVaporous.append([
         { x: 1, y1: 10, y2: 20, series: 'A', trellis: 'T1' },
         { x: 2, y1: 15, y2: 25, series: 'A', trellis: 'T1' },
         { x: 1, y1: 12, y2: 22, series: 'B', trellis: 'T1' },
@@ -762,23 +738,21 @@ const main = async () => {
             expect(Array.isArray(event))
             expect(graphVaporous.graphFlags.length > 0)
         })
-        .build('Test Graph', 'LineChart', { tab: 'Test', columns: 2 })
+        .build('Test Graph', 'Line', { tab: 'Test', columns: 2 })
         .assert((event, i, { expect }) => {
             expect(graphVaporous.visualisations.length > 0)
         })
+        .begin()
 
-    if (graphVaporous.visualisations.length > 0 && graphVaporous.graphFlags.length > 0) {
-        console.log('✓ Visualization methods work correctly\n')
-        testsPassed++
-    }
+    const test26Passed = graphVaporous.visualisations.length > 0 && graphVaporous.graphFlags.length > 0
+    recordTestResult('Visualization Methods - toGraph and build', test26Passed, 'Visualization Methods - toGraph and build works correctly')
+
 
     // ===================================================================
-    // TEST 27: Combined Window and By in streamstats
+    // Combined Window and By in streamstats
     // ===================================================================
-    console.log('TEST 27: Combined Window and By in Streamstats')
-    totalTests++
     const combinedStreamVaporous = new Vaporous()
-    combinedStreamVaporous.append([
+    await combinedStreamVaporous.append([
         { category: 'A', value: 10, seq: 1 },
         { category: 'A', value: 20, seq: 2 },
         { category: 'A', value: 30, seq: 3 },
@@ -813,19 +787,17 @@ const main = async () => {
                 expect(event.windowByList.length === 1)
             }
         })
+        .begin()
 
-    if (combinedStreamVaporous.events[5].windowBySum === 40) {
-        console.log('✓ Combined Window and By in streamstats works correctly\n')
-        testsPassed++
-    }
+    const test27Passed = combinedStreamVaporous.events[5].windowBySum === 40
+    recordTestResult('Combined Window and By in Streamstats', test27Passed, 'Combined Window and By in Streamstats works correctly')
+
 
     // ===================================================================
-    // TEST 28: Edge Cases - Empty Arrays, Null Values
+    // Edge Cases - Empty Arrays, Null Values
     // ===================================================================
-    console.log('TEST 28: Edge Cases - Empty Arrays and Null Handling')
-    totalTests++
     const edgeCaseVaporous = new Vaporous()
-    edgeCaseVaporous.append([
+    await edgeCaseVaporous.append([
         { id: 1, value: 10, empty: [] },
         { id: 2, value: null, empty: [] },
         { id: 3, value: 30, empty: [] }
@@ -843,19 +815,17 @@ const main = async () => {
             // When mvexpand encounters empty array, it should keep the event
             expect(vaporous.events.length === 0)
         })
+        .begin()
 
-    if (edgeCaseVaporous.events.length === 0) {
-        console.log('✓ Edge case handling works correctly\n')
-        testsPassed++
-    }
+    const test28Passed = edgeCaseVaporous.events.length === 0
+    recordTestResult('Edge Cases - Empty Arrays and Null Handling', test28Passed, 'Edge Cases - Empty Arrays and Null Handling works correctly')
+
 
     // ===================================================================
-    // TEST 29: Multi-key Sorting
+    // Multi-key Sorting
     // ===================================================================
-    console.log('TEST 29: Multi-key Sorting')
-    totalTests++
     const multiSortVaporous = new Vaporous()
-    multiSortVaporous.append([
+    await multiSortVaporous.append([
         { category: 'B', priority: 2, value: 10 },
         { category: 'A', priority: 1, value: 20 },
         { category: 'A', priority: 2, value: 30 },
@@ -880,41 +850,37 @@ const main = async () => {
                 expect(event.priority === 2)
             }
         })
+        .begin()
 
-    if (multiSortVaporous.events[0].category === 'A' && multiSortVaporous.events[0].priority === 1) {
-        console.log('✓ Multi-key sorting works correctly\n')
-        testsPassed++
-    }
+    const test29Passed = multiSortVaporous.events[0].category === 'A' && multiSortVaporous.events[0].priority === 1
+    recordTestResult('Multi-key Sorting', test29Passed, 'Multi-key Sorting works correctly')
+
 
     // ===================================================================
-    // TEST 30: DisableCloning in Checkpoints
+    // DisableCloning in Checkpoints
     // ===================================================================
-    console.log('TEST 30: DisableCloning in Checkpoints')
-    totalTests++
     const cloningVaporous = new Vaporous()
-    cloningVaporous.append([{ id: 1, value: 100 }])
+    await cloningVaporous.append([{ id: 1, value: 100 }])
         .checkpoint('create', 'withCloning')
         .checkpoint('create', 'withoutCloning', { disableCloning: true })
         .eval(event => ({ modified: true }))
+        .checkpoint('retrieve', 'withCloning')
+        .begin()
 
-    cloningVaporous.checkpoint('retrieve', 'withCloning')
     const hasClonedCorrectly = cloningVaporous.events[0].modified === undefined
 
-    cloningVaporous.checkpoint('retrieve', 'withoutCloning')
+    await cloningVaporous.checkpoint('retrieve', 'withoutCloning').begin()
     const hasNotCloned = cloningVaporous.events[0].modified === true
 
-    if (hasClonedCorrectly && hasNotCloned) {
-        console.log('✓ DisableCloning in checkpoints works correctly\n')
-        testsPassed++
-    }
+    const test30Passed = hasClonedCorrectly && hasNotCloned
+    recordTestResult('DisableCloning in Checkpoints', test30Passed, 'DisableCloning in Checkpoints works correctly')
+
 
     // ===================================================================
-    // TEST 31: FilterIntoCheckpoint without Destroy
+    // FilterIntoCheckpoint without Destroy
     // ===================================================================
-    console.log('TEST 31: FilterIntoCheckpoint without Destroy')
-    totalTests++
     const filterNoDestroyVaporous = new Vaporous()
-    filterNoDestroyVaporous.append([
+    await filterNoDestroyVaporous.append([
         { id: 1, active: true },
         { id: 2, active: false },
         { id: 3, active: true }
@@ -923,29 +889,33 @@ const main = async () => {
         .assert((event, i, { expect }) => {
             expect(filterNoDestroyVaporous.events.length === 3)
         })
+        .begin()
 
-    filterNoDestroyVaporous.checkpoint('retrieve', 'inactiveOnly')
+    await filterNoDestroyVaporous.checkpoint('retrieve', 'inactiveOnly')
         .assert((event, i, { expect }) => {
             expect(filterNoDestroyVaporous.events.length === 1)
             expect(event.active === false)
         })
+        .begin()
 
-    if (filterNoDestroyVaporous.events.length === 1) {
-        console.log('✓ FilterIntoCheckpoint without destroy works correctly\n')
-        testsPassed++
-    }
+    const test31Passed = filterNoDestroyVaporous.events.length === 1
+    recordTestResult('FilterIntoCheckpoint without Destroy', test31Passed, 'FilterIntoCheckpoint without Destroy works correctly')
+
 
     // ===================================================================
     // FINAL SUMMARY
     // ===================================================================
     console.log('\n=== TEST SUMMARY ===')
-    console.log(`Tests Passed: ${testsPassed}/${totalTests}`)
-    console.log(`Success Rate: ${(testsPassed / totalTests * 100).toFixed(2)}%`)
+    const totalTests = testsPassing.length + testsFailing.length
+    console.log(`Tests Passed: ${testsPassing.length}/${totalTests}`)
+    console.log(`Success Rate: ${(testsPassing.length / totalTests * 100).toFixed(2)}%`)
 
-    if (testsPassed === totalTests) {
+    if (testsFailing.length === 0) {
         console.log('\n✓ ALL TESTS PASSED!\n')
     } else {
-        console.log(`\n⚠ ${totalTests - testsPassed} test(s) failed\n`)
+        console.log(`\n⚠ ${testsFailing.length} test(s) failed\n`)
+        console.log('Failed tests:')
+        testsFailing.forEach(test => console.log(`  - ${test}`))
     }
 
     // Cleanup test data
@@ -957,3 +927,4 @@ const main = async () => {
 }
 
 main().catch(console.error)
+

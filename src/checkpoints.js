@@ -2,6 +2,22 @@ const fs = require('fs')
 
 const fileHandler = {}
 
+const closeCheckpointFiles = async () => {
+    const closePromises = Object.keys(fileHandler).map(key => {
+        return new Promise((resolve, reject) => {
+            const handler = fileHandler[key]
+            handler.end(() => {
+                delete fileHandler[key]
+                resolve()
+            })
+            handler.on('error', reject)
+        })
+    })
+
+    return Promise.all(closePromises)
+}
+
+
 module.exports = {
     _checkpoint(operation, name, data, { disableCloning }) {
         const operations = {
@@ -9,7 +25,22 @@ module.exports = {
                 if (this.activeCheckpointRestore && this.checkpoints[name]) data = this.checkpoints[name].concat(data)
                 this.checkpoints[name] = disableCloning ? data : structuredClone(data)
             },
-            retrieve: () => this.events = disableCloning ? this.checkpoints[name] : structuredClone(this.checkpoints[name]),
+            retrieve: () => {
+                if (typeof name === 'string') {
+                    this.events = disableCloning ? this.checkpoints[name] : structuredClone(this.checkpoints[name])
+                } else if (name instanceof Array) {
+                    const events = [];
+
+                    name.forEach(name => {
+                        const target = disableCloning ? this.checkpoints[name] : structuredClone(this.checkpoints[name])
+                        events.push(...target)
+                    })
+
+                    this.events = events
+                } else {
+                    throw new Error('Name argument not recognised ' + name)
+                }
+            },
             delete: () => delete this.checkpoints[name]
         }
 
@@ -18,28 +49,29 @@ module.exports = {
     },
 
     checkpoint(operation, name, { disableCloning } = {}) {
-        this.manageEntry()
+
         this._checkpoint(operation, name, this.events, { disableCloning })
-        return this.manageExit()
+        return this;
     },
 
     filterIntoCheckpoint(checkpointName, funct, { disableCloning = false, destroy = true } = {}) {
-        this.manageEntry()
+
         const dataCheckpoint = this.events.filter(funct)
         this._checkpoint('create', checkpointName, dataCheckpoint, { disableCloning })
         if (destroy) this.events = this.events.filter(event => !funct(event))
-        return this.manageExit()
+        return this;
     },
 
-
     async storedCheckpoint(operation, name, partitionBy) {
-        this.manageEntry()
+
 
         if (operation == 'create') {
             if (this.activeCheckpointRestore && name !== this.activeCheckpointRestore) throw new Error('Only one checkpoint restoration can be active at a time')
 
-            Object.keys(this.checkpoints).forEach(async (checkpoint) => {
+            const checkpointKeys = Object.keys(this.checkpoints)
 
+
+            for (const checkpoint of checkpointKeys) {
                 const checkpointEvents = this.checkpoints[checkpoint]
 
                 for (const event in checkpointEvents) {
@@ -53,7 +85,7 @@ module.exports = {
                         return new Promise(resolve => {
                             const status = thisFileHandler.write(data)
                             if (!status) {
-                                thisFileHandler.once('drain', () => resolve(writeData(data)))
+                                thisFileHandler.once('drain', resolve)
                             } else {
                                 resolve()
                             }
@@ -64,8 +96,8 @@ module.exports = {
                     await writeData(JSON.stringify(thisEvent) + '\n')
                 }
 
-            })
-
+            }
+            await closeCheckpointFiles()
             this.activeCheckpointRestore = null;
         } else if (operation == 'retrieve') {
             this.activeCheckpointRestore = name;
@@ -94,7 +126,6 @@ module.exports = {
 
         }
 
-
-        return this.manageExit()
+        return this;
     }
 }

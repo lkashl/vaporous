@@ -20,10 +20,11 @@ class Aggregation {
     }
 
     values(values) {
-        return [...new Set(values)];
+        return [...new Set(values)].filter(item => item !== undefined);
     }
 
     calculate(val) {
+        if (!this[this.type]) throw new Error('The aggregation method "' + this.type + '" is not valid')
         return this[this.type](val)
     }
 
@@ -51,6 +52,14 @@ class Aggregation {
 
     sum(values) {
         return values.reduce((a, b) => a + b, 0)
+    }
+
+    average(values) {
+        return this.sum(values) / this.count(values)
+    }
+
+    avg(values) {
+        return this.average(values)
     }
 }
 
