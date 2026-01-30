@@ -3,113 +3,102 @@ const path = require('path');
 
 let workers = []
 
-async function parallel(target, funct, { mode = "dynamic", multiThread = false } = {}) {
+async function parallel(target, { multiThread = false } = {}, callbackPath) {
 
-    let progress;
+    let workers = []
 
-    if (mode === "preallocated") {
+    let progress, funct;
 
-
-        const additionalMembers = this.events.length % target
-        const normalQueueSize = Math.floor(this.events.length / target)
-
-        const vaporousTasks = []
-
-        let offset = 0;
-        for (let i = 0; i < target; i++) {
-            const size = i < additionalMembers ? normalQueueSize + 1 : normalQueueSize
-            const current = this.events.slice(offset, offset + size)
-            const instance = this.clone()
-            instance.events = current
-            vaporousTasks.push(instance)
-            offset += size
-        }
-
-        progress = vaporousTasks.map(vaporousTask => funct(vaporousTask))
-
-
-    } else if (mode === "dynamic") {
-        const tasks = []
-        const eventList = this.events.slice();
-
-        const processSingleThread = async (event) => {
-            if (eventList.length === 0) return;
-            const thisEvent = eventList.splice(0, 1)
-            const instance = this.clone()
-            instance.events = thisEvent
-
-            const task = await funct(instance)
-            tasks.push(task)
-            await processSingleThread()
-        }
-
-        const processMultiThread = async (worker) => {
-            if (eventList.length === 0) return;
-            const thisEvent = eventList.splice(0, 1)
-            const instance = this.clone({ deep: true })
-            instance.events = thisEvent
-            const message = instance.serialise()
-
-            const task = await new Promise((resolve, reject) => {
-                worker.on('message', (result) => {
-                    instance.events = result.events
-                    resolve(result);
-                });
-
-                worker.on('error', (error) => {
-                    worker.terminate();
-                    reject(error);
-                });
-
-                worker.on('exit', (code) => {
-                    if (code !== 0) {
-                        reject(new Error(`Worker stopped with exit code ${code}`));
-                    }
-                });
-
-                worker.postMessage(message);
-            })
-
-            tasks.push(task)
-
-            await processMultiThread(worker);
-        }
-
-        const streams = []
-        for (let i = 0; i < target; i++) {
-            if (multiThread) {
-
-                const workerPath = path.join(__dirname, 'processing.worker.js');
-
-                if (!workers[i]) workers[i] = new Worker(workerPath);
-                const worker = workers[i];
-
-                streams.push(processMultiThread(worker))
-            } else {
-                streams.push(processSingleThread())
-            }
-        }
-
-        await Promise.all(streams)
-        progress = tasks
-    } else {
-        throw new Error('Parallel processing mode "' + mode + '" not recognised')
+    if (typeof callbackPath === 'object' && !multiThread) {
+        funct = require(callbackPath[0])
+        callbackPath.splice(0, 1)
+        callbackPath.forEach(item => {
+            funct = funct[item]
+        })
+    } else if ((typeof callbackPath === 'function' && !multiThread)
+        || (typeof callbackPath === 'object' && multiThread)) {
+        funct = callbackPath
+    } else if (typeof callbackPath !== 'object' && multiThread) {
+        throw new Error('Parallel processing requires a path if multithread is being used')
     }
 
+    const tasks = []
+    const eventList = this.events.slice()
+    const loggers = this.loggers
+
+    const processSingleThread = async (event) => {
+        if (eventList.length === 0) return;
+        const thisEvent = eventList.splice(0, 1)
+        const instance = new require('../Vaporous')({ loggers })
+        instance.events = thisEvent
+
+        const task = await funct(instance)
+        tasks.push(task.begin())
+
+        await processSingleThread()
+    }
+
+    const processMultiThread = async (worker) => {
+        if (eventList.length === 0) return;
+        const thisEvent = eventList.splice(0, 1)
+
+        const task = await new Promise((resolve, reject) => {
+            worker.on('message', (result) => {
+                if (result instanceof Error) {
+                    return reject(result)
+                }
+                resolve(result.events);
+            });
+
+            worker.on('error', (error) => {
+                worker.terminate();
+                reject(error);
+            });
+
+            worker.on('exit', (code) => {
+                if (code !== 0) reject(new Error(`Worker stopped with exit code ${code}`));
+            });
+
+            worker.postMessage({ callbackPath: funct, events: thisEvent, loggers, workerId: workers.length });
+        })
+
+        tasks.push(task)
+
+        await processMultiThread(worker);
+    }
+
+    const streams = []
+    target = Math.min(target, this.events.length)
+
+    for (let i = 0; i < target; i++) {
+        if (multiThread) {
+
+            const workerPath = path.join(__dirname, 'processing.worker.js');
+
+            if (!workers[i]) workers[i] = new Worker(workerPath);
+            const worker = workers[i];
+
+            streams.push(processMultiThread(worker))
+        } else {
+            streams.push(processSingleThread())
+        }
+    }
+
+    await Promise.all(streams)
+    progress = tasks
     progress = await Promise.all(progress)
 
-    // Collate all events from the processed instances
-    const events = []
-    progress.forEach(instance => {
-        if (instance && instance.events) {
-            events.push(...instance.events)
-        }
+    workers.forEach(worker => worker.terminate())
+
+    const eventsCumulative = []
+    progress.forEach(events => {
+        eventsCumulative.push(...events)
     })
 
-    // Update this instance's events with the collated results
-    this.events = events
+    this.events = eventsCumulative
     return this;
 }
+
 
 const sleep = (interval) => {
     return new Promise(resolve => {

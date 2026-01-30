@@ -100,7 +100,7 @@ module.exports = {
         return this;
     },
 
-    build(name, type, { tab = 'Default', columns = 2, y2, y1Type, y2Type, y1Stacked, y2Stacked, sortX = 'asc', xTicks, trellisAxis = "shared", legend, extendedDescription } = {}) {
+    build(name, type, { tab = 'Default', columns = 2, y2, y1Type, y2Type, y1Stacked, y2Stacked, sortX = 'asc', xTicks, trellisAxis = "shared", legend, extendedDescription, fillX, chartJSOptions = {} } = {}) {
 
 
         const visualisationOptions = { tab, columns, extendedDescription }
@@ -189,8 +189,8 @@ module.exports = {
 
                     if (type === 'Scatter') {
                         base.showLine = false
-                        base.pointRadius = 8
-                        base.pointStyle = 'rect'
+                        base.pointRadius = 4
+                        base.pointStyle = 'circ'
                     } else if (type === 'Area') {
                         base.fill = 'origin'
                     } else if (type === 'Line') {
@@ -253,6 +253,30 @@ module.exports = {
                 if (y2Stacked) scales.x.stacked = true
             }
 
+            if (fillX) {
+                const start = fillX.start !== undefined ? fillX.start : Math.min(...data.labels)
+                const end = fillX.end !== undefined ? fillX.end : Math.max(...data.labels)
+
+                const labels = []
+                const datasets = data.datasets.map(dataset => ({ ...dataset, data: [] }))
+
+                for (let i = start; i < end; i += fillX.unit) {
+                    const exists = data.labels.findIndex(label => label === i)
+
+                    if (exists !== -1) {
+                        data.datasets.forEach((dataset, j) => {
+                            datasets[j].data[i] = dataset.data(exists)
+                        })
+                    } else {
+                        datasets.forEach(dataset => dataset.data[i] = 0)
+                    }
+                    labels.push(i)
+
+                    data.labels = labels;
+                    data.datasets = datasets;
+                }
+            }
+
             return {
                 type: 'line',
                 data: data,
@@ -268,7 +292,8 @@ module.exports = {
                             display: false,
                             text: titleText
                         }
-                    }
+                    },
+                    ...chartJSOptions
                 }
             }
         })
@@ -404,6 +429,7 @@ module.exports = {
                     // Need to do column defintiions here
                     parentHolder.appendChild(tableDiv)
                     new agGrid.createGrid(tableDiv, {
+                        suppressFieldDotNotation: true,
                         rowData: trellisData.rowData,
                         // Columns to be displayed (Should match rowData properties)
                         columnDefs: trellisData.columnDefinitions,
@@ -413,7 +439,8 @@ module.exports = {
                             sortable: true,
                             filter: true
                         },
-                        domLayout: 'autoHeight'
+                        domLayout: 'autoHeight',
+                        enableCellTextSelection: true,
                         // suppressHorizontalScroll: false,
                         // autoSizeStrategy: {
                         //     type: 'fitGridWidth',

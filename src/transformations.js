@@ -1,11 +1,16 @@
 const dayjs = require('dayjs');
+const { events } = require('./processing');
 
 module.exports = {
-    eval(modifier) {
+    eval(modifier, discard) {
 
-        this.events.forEach(event => {
+        this.events.forEach((event, i) => {
             const vals = modifier(event)
-            if (vals) Object.assign(event, vals)
+            if (discard && vals) {
+                this.events[i] = vals
+            } else if (vals) {
+                Object.assign(events, vals)
+            }
         })
         return this;
     },
@@ -60,17 +65,28 @@ module.exports = {
 
         const arr = []
         this.events.forEach(event => {
-            if (!event[target]) return arr.push(event)
-            event[target].forEach((item, i) => {
-                arr.push({
-                    ...event,
-                    [target]: item,
-                    [`_mvExpand_${target}`]: i
+            if (event instanceof Array) {
+                if (!!target) throw new Error('Cannot mvepand an array to a target')
+                event.forEach((item, i) => {
+                    item.i = i
+                    arr.push(item)
                 })
-            })
+            } else {
+
+
+                if (!event[target]) return arr.push(event)
+                event[target].forEach((item, i) => {
+                    arr.push({
+                        ...event,
+                        [target]: item,
+                        [`_mvExpand_${target}`]: i
+                    })
+                })
+            }
         })
 
         this.events = arr
         return this;
     }
 }
+

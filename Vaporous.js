@@ -14,7 +14,7 @@ const checkpoints = require('./src/checkpoints');
 const visualization = require('./src/visualization');
 const http = require('./src/http')
 const processing = require('./src/processing')
-
+const path = require('path')
 
 class Vaporous {
 
@@ -39,7 +39,7 @@ class Vaporous {
         this._isExecuting = false
 
         // Return a proxy that intercepts method calls
-        return new Proxy(this, {
+        const proxy = new Proxy(this, {
             get(target, prop, receiver) {
 
                 // If this is not a function then return actual value
@@ -52,7 +52,11 @@ class Vaporous {
                     && !target._isExecuting
                     && target._shouldQueue(prop)) {
                     return function (...args) {
-                        target.processingQueue.push([prop, args])
+                        let err = {}
+                        Error.captureStackTrace(err, proxy);
+                        err = err.stack.split('\n')[2]
+                        err = path.parse(err).base.replace(")", "")
+                        target.processingQueue.push([prop, args, { stack: err }])
                         return receiver  // Return the proxy, not the target!
                     }
                 }
@@ -60,47 +64,13 @@ class Vaporous {
                 return target[prop]
             }
         })
+
+        return proxy;
     }
 
     _shouldQueue(methodName) {
         const nonQueueable = ['begin', 'clone', 'serialise', 'destroy', '_shouldQueue', 'valueOf', 'toString']
         return !nonQueueable.includes(methodName)
-    }
-
-    manageEntry() {
-        if (this.loggers?.perf) {
-            const [, , method, ...origination] = new Error().stack.split('\n')
-            const invokedMethod = method.match(/Vaporous.(.+?) /)
-
-            let orig = origination.find(orig => {
-                const originator = orig.split("/").at(-1)
-                return !originator.includes("Vaporous")
-            })
-
-            orig = orig.split("/").at(-1)
-            const logLine = "(" + orig + " BEGIN " + invokedMethod[1]
-            this.loggers.perf('info', logLine)
-            this.perf = { time: new Date().valueOf(), logLine }
-        }
-    }
-
-    manageExit() {
-        if (this.loggers?.perf) {
-            let { logLine, time } = this.perf;
-            const executionTime = new Date() - time
-            this.totalTime += executionTime
-
-            const match = logLine.match(/^.*?BEGIN/);
-            const prepend = "END"
-            if (match) {
-                const toReplace = match[0]; // the matched substring
-                const spaces = " ".repeat(toReplace.length - prepend.length); // same length, all spaces
-                logLine = spaces + prepend + logLine.replace(toReplace, "");
-            }
-
-            this.loggers.perf('info', logLine + " (" + executionTime + "ms)")
-        }
-        return this
     }
 
     // ========================================
@@ -138,10 +108,11 @@ class Vaporous {
 
     /**
      * Execute all queued operations
-     * @returns {Promise<Vaporous>} - Returns this instance for chaining
+    * @param {string}  [stageName] - Optional stage name for logging
+    * @returns {Promise<Vaporous>} - Returns this instance for chaining
      */
-    async begin() {
-        return await core.begin.call(this);
+    async begin(stageName) {
+        return await core.begin.call(this, stageName);
     }
 
     serialise({ } = {}) {
@@ -198,8 +169,8 @@ class Vaporous {
      * @param {Function} modifier - Function that receives an event and returns modifications to apply
      * @returns {Vaporous} - Returns this instance for chaining
      */
-    eval(modifier) {
-        return transformations.eval.call(this, modifier);
+    eval(modifier, discard) {
+        return transformations.eval.call(this, modifier, discard);
     }
 
     /**
@@ -504,6 +475,18 @@ class Vaporous {
      */
     parallel(concurrency, callback, options) {
         return processing.parallel?.call(this, concurrency, callback, options) || this;
+    }
+
+    recurse(callback) {
+        return processing.recurse?.call(this, callback)
+    }
+
+    debug(callback) {
+        return core.debug.call(this, callback)
+    }
+
+    doIf(conditioin, callback) {
+        return processing.doIf.call(this, conditioin, callback)
     }
 }
 

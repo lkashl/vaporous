@@ -27,7 +27,7 @@ module.exports = {
 
         const expect = (funct) => { if (!funct) throw new Error('Assertion failed') }
         this.events.forEach((event, i) => {
-            funct(event, i, { expect })
+            funct(event, i, { expect, events: this.events })
         })
         return this;
     }

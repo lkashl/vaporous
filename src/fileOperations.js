@@ -28,11 +28,12 @@ module.exports = {
                     .pipe(split2(delim))
                     .on('data', line => {
                         try {
-                            const event = parser(line)
+                            const event = parser(line, obj)
                             if (!event) return;
 
                             if (event instanceof Array) {
                                 event.forEach(item => {
+                                    if (item === null) return;
                                     preserveFileInput(item, obj)
                                     content.push(item)
                                 })

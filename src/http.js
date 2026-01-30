@@ -1,5 +1,8 @@
 const httpLib = require('http')
 const httpsLib = require('https')
+const { HttpProxyAgent } = require('http-proxy-agent')
+const { HttpsProxyAgent } = require('https-proxy-agent')
+
 
 async function load_http() {
 
@@ -12,15 +15,25 @@ async function load_http() {
 
         const task = new Promise((resolve, reject) => {
             const lib = _http_req_uri.startsWith('https') ? httpsLib : httpLib
-            const { hostname, port, pathname } = URL.parse(_http_req_uri)
+            const { hostname, port, pathname, search } = URL.parse(_http_req_uri)
+            const path = pathname + (search || '')
 
-            const req = lib.request({
+            const options = {
                 method: _http_req_method,
                 hostname,
                 port,
                 path: pathname,
                 headers: _http_req_headers
-            }, res => {
+            }
+
+            const proxy = process.env.HTTP_PROXY || process.env.HTTPS_PROXY || process.env.http_proxy || process.env.https_proxy
+
+            if (proxy) {
+                const isHttps = _http_req_uri.startsWith('https')
+                options.agent = isHttps ? new HttpsProxyAgent(proxy) : new HttpProxyAgent(proxy)
+            }
+
+            const req = lib.request(options, res => {
                 let body = '';
 
                 res.on('data', data => {

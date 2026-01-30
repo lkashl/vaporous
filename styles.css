@@ -35,7 +35,7 @@ body {
 
 .tabBar {
     display: flex;
-    overflow: hidden;
+    overflow: auto;
     box-shadow:
         0 3px 12px rgba(0, 0, 0, 0.09),
         0 6px 18px rgba(0, 0, 0, 0.06);
@@ -46,6 +46,7 @@ body {
     margin-right: 8px;
     position: relative;
     background: #fff;
+    align-items: center;
 }
 
 .tabs {
