@@ -100,7 +100,7 @@ module.exports = {
         return this;
     },
 
-    build(name, type, { tab = 'Default', columns = 2, y2, y1Type, y2Type, y1Stacked, y2Stacked, sortX = 'asc', xTicks, trellisAxis = "shared", legend, extendedDescription, fillX, chartJSOptions = {} } = {}) {
+    build(name, type, { tab = 'Default', columns = 2, y2, y1Type, y2Type, y1Stacked, y2Stacked, sortX = 'asc', xTicks = false, trellisAxis = "shared", legend, extendedDescription, fillX, chartJSOptions = {} } = {}) {
 
 
         const visualisationOptions = { tab, columns, extendedDescription }
@@ -265,16 +265,16 @@ module.exports = {
 
                     if (exists !== -1) {
                         data.datasets.forEach((dataset, j) => {
-                            datasets[j].data[i] = dataset.data(exists)
+                            datasets[j].data[i] = dataset.data[exists]
                         })
                     } else {
                         datasets.forEach(dataset => dataset.data[i] = 0)
                     }
                     labels.push(i)
-
-                    data.labels = labels;
-                    data.datasets = datasets;
                 }
+
+                data.labels = labels;
+                data.datasets = datasets;
             }
 
             return {

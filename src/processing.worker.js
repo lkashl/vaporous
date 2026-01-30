@@ -1,4 +1,4 @@
-const { parentPort, workerData } = require('worker_threads');
+const { parentPort } = require('worker_threads');
 const { Vaporous } = require('../Vaporous');
 
 // Listen for messages from the main thread
@@ -12,9 +12,9 @@ parentPort.on('message', async (message) => {
             funct = funct[item]
         })
 
-        let instance = new Vaporous();
+        let instance = new Vaporous({ loggers });
         instance.events = events;
-        await funct(instance).begin('w', workerId)
+        await funct(instance).begin('w' + workerId)
         parentPort
             .postMessage(instance.serialise());
     } catch (error) {

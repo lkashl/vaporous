@@ -20,7 +20,7 @@ class Aggregation {
     }
 
     values(values) {
-        return [...new Set(values).filter(item => item !== undefined)];
+        return [...new Set(values)].filter(item => item !== undefined);
     }
 
     calculate(val) {

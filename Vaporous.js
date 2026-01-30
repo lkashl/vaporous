@@ -485,8 +485,8 @@ class Vaporous {
         return core.debug.call(this, callback)
     }
 
-    doIf(conditioin, callback) {
-        return processing.doIf.call(this, conditioin, callback)
+    doIf(condition, callback) {
+        return processing.doIf.call(this, condition, callback)
     }
 }
 

@@ -15,14 +15,14 @@ async function load_http() {
 
         const task = new Promise((resolve, reject) => {
             const lib = _http_req_uri.startsWith('https') ? httpsLib : httpLib
-            const { hostname, port, pathname, search } = URL.parse(_http_req_uri)
+            const { hostname, port, pathname, search } = new URL(_http_req_uri)
             const path = pathname + (search || '')
 
             const options = {
                 method: _http_req_method,
                 hostname,
                 port,
-                path: pathname,
+                path,
                 headers: _http_req_headers
             }
 

@@ -2,17 +2,19 @@ const fs = require('fs')
 
 const fileHandler = {}
 
-const closeCheckpointFiles = () => {
+const closeCheckpointFiles = async () => {
     const closePromises = Object.keys(fileHandler).map(key => {
         return new Promise((resolve, reject) => {
             const handler = fileHandler[key]
-            handler.end((() => {
+            handler.end(() => {
                 delete fileHandler[key]
                 resolve()
-            }))
+            })
             handler.on('error', reject)
         })
     })
+
+    return Promise.all(closePromises)
 }
 
 
@@ -83,7 +85,7 @@ module.exports = {
                         return new Promise(resolve => {
                             const status = thisFileHandler.write(data)
                             if (!status) {
-                                thisFileHandler.once('drain', () => resolve(writeData(data)))
+                                thisFileHandler.once('drain', resolve)
                             } else {
                                 resolve()
                             }

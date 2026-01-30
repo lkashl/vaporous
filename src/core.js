@@ -40,17 +40,17 @@ module.exports = {
         const initiationTime = new Date()
         let taskNum = 0
 
-        while (this.processingQuee.length > 0) {
-            const [method, params, { stack }] = this.processingQuee.splice(0, 1)[0]
+        while (this.processingQueue.length > 0) {
+            const [method, params, { stack }] = this.processingQueue.splice(0, 1)[0]
 
             const opAlias = `${stageName}OP: ${taskNum} [${stack}] - ${method}`
             const start = new Date()
 
             try {
                 await this[method](...params)
-                if (this.loggers?.perf) console.log(`${opAlias} took ${new Date() - start + ' ms'}`)
+                if (this.loggers?.perf) console.log(`${opAlias} - took ${new Date() - start + ' ms'}`)
             } catch (err) {
-                console.log(`${opAlias} 0 took ${new Date() - start + 'ms'} - ${err.message} ${err.stack}`)
+                throw new Error(`${opAlias} not resolvable after ${new Date() - start + ' ms'} - ${err.message} - ${err.stack}`)
             }
             taskNum++
         }
@@ -63,14 +63,6 @@ module.exports = {
         console.log(`${stageName} - total time - ${new Date() - initiationTime} ms`)
 
 
-        for (let taskNum in this.processingQueue) {
-            const [method, params] = this.processingQueue[taskNum]
-            const start = new Date()
-            await this[method](...params)
-            if (this.loggers?.perf) this.loggers.perf('log', `${stageName} OP: ${taskNum} - ${method} - took ${new Date() - start + ' ms'}`)
-        }
-
-        this.processingQueue = []
         this._isExecuting = false
         return this;
     },

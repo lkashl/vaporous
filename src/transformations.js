@@ -9,7 +9,7 @@ module.exports = {
             if (discard && vals) {
                 this.events[i] = vals
             } else if (vals) {
-                Object.assign(events, vals)
+                Object.assign(event, vals)
             }
         })
         return this;
@@ -66,7 +66,7 @@ module.exports = {
         const arr = []
         this.events.forEach(event => {
             if (event instanceof Array) {
-                if (!!target) throw new Error('Cannot mvepand an array to a target')
+                if (!!target) throw new Error('Cannot mvexpand an array to a target')
                 event.forEach((item, i) => {
                     item.i = i
                     arr.push(item)

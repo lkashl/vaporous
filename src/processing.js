@@ -29,7 +29,8 @@ async function parallel(target, { multiThread = false } = {}, callbackPath) {
     const processSingleThread = async (event) => {
         if (eventList.length === 0) return;
         const thisEvent = eventList.splice(0, 1)
-        const instance = new require('../Vaporous')({ loggers })
+        const { Vaporous } = require('../Vaporous');
+        const instance = new Vaporous({ loggers })
         instance.events = thisEvent
 
         const task = await funct(instance)
@@ -122,8 +123,37 @@ async function interval(funct, intervalTiming, options) {
     return this;
 }
 
+async function recurse(funct) {
+    const { Vaporous } = require('../Vaporous')
+    const events = []
+
+    for (let event of this.events) {
+        const target = new Vaporous({ loggers: this.loggers })
+        target.events = [event]
+
+        const localRecursion = async (target) => {
+            const val = await funct(target)
+            if (val.events[0]._recursion) return localRecursion(target)
+            return val
+        }
+
+        const val = await localRecursion(target)
+        events.push(...val.events)
+    }
+
+    this.events = events
+    return this;
+}
+
+function doIf(condition, callback) {
+    const proceed = condition(this)
+    if (proceed) callback(this)
+    return this;
+}
 
 module.exports = {
     parallel,
-    interval
+    interval,
+    recurse,
+    doIf
 }
