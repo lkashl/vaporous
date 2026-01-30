@@ -1,5 +1,4 @@
 const dayjs = require('dayjs');
-const { events } = require('./processing');
 
 module.exports = {
     eval(modifier, discard) {
