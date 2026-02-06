@@ -1,23 +1,4 @@
 module.exports = {
-    method(operation, name, options) {
-        const operations = {
-            create: () => {
-                this.savedMethods[name] = options
-            },
-            retrieve: () => {
-                if (!this.savedMethods[name]) throw new Error('Method not found ' + name)
-                this.savedMethods[name](this, options)
-            },
-            delete: () => {
-                delete this.savedMethods[name]
-            }
-        }
-
-        operations[operation]()
-        if (operation !== 'retrieve') return this;
-        return this;
-    },
-
     async debug(callback) {
         await callback(this)
         return this;

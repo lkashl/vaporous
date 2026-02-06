@@ -150,9 +150,35 @@ async function recurse(funct) {
     return this;
 }
 
-function doIf(condition, callback) {
-    const proceed = condition(this)
-    if (proceed) callback(this)
+async function doIf(condition, callback) {
+    const proceed = await condition(this)
+    if (proceed) {
+        const clone = this.clone()
+        const task = await callback(clone)
+        task.begin()
+        this.events = clone.events
+    }
+    return this;
+}
+
+async function method(operation, name, options) {
+    const operations = {
+        create: () => {
+            this.savedMethods[name] = options
+        },
+        retrieve: async () => {
+            if (!this.savedMethods[name]) throw new Error('Method not found ' + name)
+            const clone = this.clone()
+            const task = await clone.savedMethods[name](clone, options)
+            await task.begin()
+            this.events = clone.events
+        },
+        delete: () => {
+            delete this.savedMethods[name]
+        }
+    }
+
+    await operations[operation]()
     return this;
 }
 
@@ -160,5 +186,6 @@ module.exports = {
     parallel,
     interval,
     recurse,
-    doIf
+    doIf,
+    method
 }

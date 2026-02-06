@@ -85,7 +85,7 @@ class Vaporous {
      * @returns {Vaporous} - Returns this instance for chaining
      */
     method(operation, name, options) {
-        return core.method.call(this, operation, name, options);
+        return processing.method.call(this, operation, name, options);
     }
 
     /**
@@ -108,13 +108,17 @@ class Vaporous {
 
     /**
      * Execute all queued operations
-    * @param {string}  [stageName] - Optional stage name for logging
-    * @returns {Promise<Vaporous>} - Returns this instance for chaining
+     * @param {string} [stageName] - Optional stage name for logging
+     * @returns {Promise<Vaporous>} - Returns this instance for chaining
      */
-    async begin(stageName) {
-        return await core.begin.call(this, stageName);
+    begin(stageName) {
+        return core.begin.call(this, stageName);
     }
 
+    /**
+     * Serialize the Vaporous instance to a plain object
+     * @returns {Object} - Serialized instance data
+     */
     serialise({ } = {}) {
         return core.serialise.call(this);
     }
@@ -167,6 +171,7 @@ class Vaporous {
     /**
      * Evaluate and modify each event
      * @param {Function} modifier - Function that receives an event and returns modifications to apply
+     * @param {boolean} [discard] - Whether to discard the event if modifier returns falsy
      * @returns {Vaporous} - Returns this instance for chaining
      */
     eval(modifier, discard) {
@@ -246,15 +251,15 @@ class Vaporous {
      * @private
      */
     _fileScan(directory) {
-        return fileOperations._fileScan?.call(this, directory);
+        return fileOperations._fileScan.call(this, directory);
     }
 
     /**
      * Internal file load helper
      * @private
      */
-    async _fileLoad(events, delim, parser) {
-        return await fileOperations._fileLoad?.call(this, events, delim, parser);
+    _fileLoad(events, delim, parser) {
+        return fileOperations._fileLoad.call(this, events, delim, parser);
     }
 
     /**
@@ -263,7 +268,7 @@ class Vaporous {
      * @returns {Vaporous} - Returns this instance for chaining
      */
     fileScan(directory) {
-        return fileOperations.fileScan?.call(this, directory) || this;
+        return fileOperations.fileScan.call(this, directory);
     }
 
     /**
@@ -271,8 +276,8 @@ class Vaporous {
      * @param {Function} parser - Parser function for CSV rows
      * @returns {Vaporous} - Returns this instance for chaining
      */
-    async csvLoad(parser) {
-        return await fileOperations.csvLoad?.call(this, parser) || this;
+    csvLoad(parser) {
+        return fileOperations.csvLoad.call(this, parser);
     }
 
     /**
@@ -281,8 +286,8 @@ class Vaporous {
      * @param {Function} parser - Parser function for lines
      * @returns {Vaporous} - Returns this instance for chaining
      */
-    async fileLoad(delim, parser) {
-        return await fileOperations.fileLoad?.call(this, delim, parser) || this;
+    fileLoad(delim, parser) {
+        return fileOperations.fileLoad.call(this, delim, parser);
     }
 
     /**
@@ -291,7 +296,7 @@ class Vaporous {
      * @returns {Vaporous} - Returns this instance for chaining
      */
     writeFile(title) {
-        return fileOperations.writeFile?.call(this, title) || this;
+        return fileOperations.writeFile.call(this, title);
     }
 
     /**
@@ -300,7 +305,7 @@ class Vaporous {
      * @returns {Vaporous} - Returns this instance for chaining
      */
     output(...args) {
-        return fileOperations.output?.call(this, ...args) || this;
+        return fileOperations.output.call(this, ...args);
     }
 
     // ========================================
@@ -321,7 +326,7 @@ class Vaporous {
      * @returns {Vaporous} - Returns this instance for chaining
      */
     stats(...args) {
-        return statistics.stats?.call(this, ...args) || this;
+        return statistics.stats.call(this, ...args);
     }
 
     /**
@@ -330,7 +335,7 @@ class Vaporous {
      * @returns {Vaporous} - Returns this instance for chaining
      */
     eventstats(...args) {
-        return statistics.eventstats?.call(this, ...args) || this;
+        return statistics.eventstats.call(this, ...args);
     }
 
     /**
@@ -338,7 +343,7 @@ class Vaporous {
      * @private
      */
     _streamstats(...args) {
-        return statistics._streamstats?.call(this, ...args) || this;
+        return statistics._streamstats.call(this, ...args);
     }
 
     /**
@@ -347,7 +352,7 @@ class Vaporous {
      * @returns {Vaporous} - Returns this instance for chaining
      */
     streamstats(...args) {
-        return statistics.streamstats?.call(this, ...args) || this;
+        return statistics.streamstats.call(this, ...args);
     }
 
     /**
@@ -358,7 +363,7 @@ class Vaporous {
      * @returns {Vaporous} - Returns this instance for chaining
      */
     delta(field, remapField, ...bys) {
-        return statistics.delta?.call(this, field, remapField, ...bys) || this;
+        return statistics.delta.call(this, field, remapField, ...bys);
     }
 
     // ========================================
@@ -370,7 +375,7 @@ class Vaporous {
      * @private
      */
     _checkpoint(operation, name, data, options) {
-        return checkpoints._checkpoint?.call(this, operation, name, data, options) || this;
+        return checkpoints._checkpoint.call(this, operation, name, data, options);
     }
 
     /**
@@ -381,7 +386,7 @@ class Vaporous {
      * @returns {Vaporous} - Returns this instance for chaining
      */
     checkpoint(operation, name, options) {
-        return checkpoints.checkpoint?.call(this, operation, name, options) || this;
+        return checkpoints.checkpoint.call(this, operation, name, options);
     }
 
     /**
@@ -392,7 +397,7 @@ class Vaporous {
      * @returns {Vaporous} - Returns this instance for chaining
      */
     filterIntoCheckpoint(checkpointName, funct, options) {
-        return checkpoints.filterIntoCheckpoint?.call(this, checkpointName, funct, options) || this;
+        return checkpoints.filterIntoCheckpoint.call(this, checkpointName, funct, options);
     }
 
     /**
@@ -402,8 +407,8 @@ class Vaporous {
      * @param {string} partitionBy - Field to partition by
      * @returns {Vaporous} - Returns this instance for chaining
      */
-    async storedCheckpoint(operation, name, partitionBy) {
-        return await checkpoints.storedCheckpoint?.call(this, operation, name, partitionBy) || this;
+    storedCheckpoint(operation, name, partitionBy) {
+        return checkpoints.storedCheckpoint.call(this, operation, name, partitionBy);
     }
 
     // ========================================
@@ -416,7 +421,7 @@ class Vaporous {
      * @returns {Vaporous} - Returns this instance for chaining
      */
     toGraph(...keys) {
-        return visualization.toGraph?.call(this, ...keys) || this;
+        return visualization.toGraph.call(this, ...keys);
     }
 
     /**
@@ -427,16 +432,17 @@ class Vaporous {
      * @returns {Vaporous} - Returns this instance for chaining
      */
     build(title, type, options) {
-        return visualization.build?.call(this, title, type, options) || this;
+        return visualization.build.call(this, title, type, options);
     }
 
     /**
      * Render visualizations
+     * @param {string} location - Location to render visualizations
      * @param {Object} [options] - Optional render options
      * @returns {Vaporous} - Returns this instance for chaining
      */
-    render(options) {
-        return visualization.render?.call(this, options) || this;
+    render(location, options) {
+        return visualization.render.call(this, location, options);
     }
 
     // ========================================
@@ -449,7 +455,7 @@ class Vaporous {
      * @returns {Vaporous} - Returns this instance for chaining
      */
     load_http(options) {
-        return http.load_http?.call(this, options) || this;
+        return http.load_http.call(this, options);
     }
 
     // ========================================
@@ -463,7 +469,7 @@ class Vaporous {
      * @returns {Vaporous} - Returns this instance for chaining
      */
     interval(callback, ms) {
-        return processing.interval?.call(this, callback, ms) || this;
+        return processing.interval.call(this, callback, ms);
     }
 
     /**
@@ -474,19 +480,35 @@ class Vaporous {
      * @returns {Vaporous} - Returns this instance for chaining
      */
     parallel(concurrency, callback, options) {
-        return processing.parallel?.call(this, concurrency, callback, options) || this;
+        return processing.parallel.call(this, concurrency, callback, options);
     }
 
+    /**
+     * Recursively process events
+     * @param {Function} callback - Function to execute recursively
+     * @returns {Vaporous} - Returns this instance for chaining
+     */
     recurse(callback) {
-        return processing.recurse?.call(this, callback)
+        return processing.recurse.call(this, callback);
     }
 
+    /**
+     * Debug events by executing a callback
+     * @param {Function} callback - Debug callback function
+     * @returns {Vaporous} - Returns this instance for chaining
+     */
     debug(callback) {
-        return core.debug.call(this, callback)
+        return core.debug.call(this, callback);
     }
 
+    /**
+     * Conditionally execute a callback
+     * @param {Function|boolean} condition - Condition to evaluate or boolean value
+     * @param {Function} callback - Function to execute if condition is true
+     * @returns {Vaporous} - Returns this instance for chaining
+     */
     doIf(condition, callback) {
-        return processing.doIf.call(this, condition, callback)
+        return processing.doIf.call(this, condition, callback);
     }
 }
 
