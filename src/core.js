@@ -52,20 +52,12 @@ module.exports = {
         const Vaporous = require('../Vaporous').Vaporous;
         const cloneInstance = new Vaporous()
 
-        const excludeStructualClone = ['loggers', 'intervals']
-        const excludeCompletely = ['_isExecuting']
-
-        Object.keys(this).forEach(key => {
-            if (excludeCompletely.includes(key)) return;
-            cloneInstance[key] = (deep && !excludeStructualClone.includes(key)) ? structuredClone(this[key]) : this[key]
+        Object.keys(this).forEach(prop => {
+            cloneInstance[prop] = this[prop]
         })
 
-        const purge = ['checkpoints', 'events']
-
-        purge.forEach(purgeItem => {
-            cloneInstance[purgeItem] = []
-        })
-
+        cloneInstance.processingQueue = []
+        cloneInstance._isExecuting = false
         return cloneInstance
     },
 
