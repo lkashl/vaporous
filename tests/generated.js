@@ -577,7 +577,7 @@ const main = async () => {
         { value: 20 }
     ])
         .method('create', 'doubleValues', (vap, options) => {
-            vap.eval(event => ({
+            return vap.eval(event => ({
                 doubled: event.value * (options.multiplier || 2)
             }))
         })

@@ -80,7 +80,7 @@ const main = async () => {
         })
 
         .method('create', 'aggregateKG', (vaporous, { field }) => {
-            vaporous
+            return vaporous
                 .checkpoint('retrieve', 'mainDataSeries')
                 .bin(field + '_kgf', 1)
                 .sort('dsc', 'daysAgo', field + "_kgf")
@@ -100,7 +100,7 @@ const main = async () => {
 
         // Duration weight held for
         .method('create', 'weightHeld', (vaporous, { field }) => {
-            vaporous
+            return vaporous
                 .checkpoint('retrieve', 'mainDataSeries')
                 .bin(field + '_kgf', 2)
                 .stats(new Aggregation('timeHeld', 'sum', 'timeHeld'), new By('daysAgo'), new By(field + '_kgf'))
@@ -118,7 +118,7 @@ const main = async () => {
 
         // Weight by phase
         .method('create', 'weightByPhase', (vaporous, { field }) => {
-            vaporous
+            return vaporous
                 .checkpoint('retrieve', 'mainDataSeries')
                 .stats(new Aggregation(field + '_kgf', 'max', field + '_kgf'), new By('phase'), new By('daysAgo'))
                 .toGraph('phase', field + '_kgf', 'daysAgo')
@@ -153,7 +153,7 @@ const main = async () => {
 
         .checkpoint('retrieve', 'mainDataSeries')
         .method('create', 'weightByLocation', (vaporous, { field }) => {
-            vaporous
+            return vaporous
                 .checkpoint('retrieve', 'mainDataSeries')
                 .filter(event => event.phase < 5)
                 .bin(field + "_cm", 2)
