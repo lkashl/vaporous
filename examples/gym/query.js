@@ -4,9 +4,7 @@ const { Vaporous, By, Aggregation, Window } = require("../../Vaporous")
 
 const dataFolder = __dirname + '/exampleData'
 const main = async () => {
-
-    console.log('Starting')
-    const vaporous = await new Vaporous({
+    await new Vaporous({
         loggers: {
             perf: (level, event) => console[level](event)
         }
@@ -39,8 +37,6 @@ const main = async () => {
 
             return event;
         })
-
-    vaporous
         .flatten()
         .eval(event => event._fileInput = event._fileInput.split('/').at(-1).split('.')[0])
         .assert((event, i, { expect }) => {
@@ -58,7 +54,7 @@ const main = async () => {
         .bin('seconds', 1)
         .stats(new Aggregation('pollingInterval', 'percentile', 'pollingInterval', 95), new By('seconds'), new By('daysAgo'))
         .toGraph('seconds', 'pollingInterval', 'daysAgo')
-        .build('Machine polling', 'LineChart', {
+        .build('Machine polling', 'Line', {
             columns: 2,
             tab: 'Machine Diagnostics'
         })
@@ -68,7 +64,7 @@ const main = async () => {
         .bin('seconds', 1)
         .stats(new Aggregation('seconds', 'count', 'count'), new By('daysAgo'), new By('seconds'))
         .toGraph('seconds', 'count', 'daysAgo')
-        .build('Second test', 'LineChart', { columns: 2, tab: "Machine Diagnostics" })
+        .build('Second test', 'Line', { columns: 2, tab: "Machine Diagnostics" })
 
         // Create temperature graph
         .checkpoint('retrieve', 'mainDataSeries')
@@ -78,13 +74,13 @@ const main = async () => {
             new By('seconds'), new By('daysAgo'), new By('_mvExpand_temps')
         )
         .toGraph('seconds', 'maxTemp', 'daysAgo', '_mvExpand_temps')
-        .build('Temp sensor - ', 'LineChart', {
+        .build('Temp sensor - ', 'Line', {
             columns: 3,
             tab: "Machine Diagnostics"
         })
 
         .method('create', 'aggregateKG', (vaporous, { field }) => {
-            vaporous
+            return vaporous
                 .checkpoint('retrieve', 'mainDataSeries')
                 .bin(field + '_kgf', 1)
                 .sort('dsc', 'daysAgo', field + "_kgf")
@@ -104,7 +100,7 @@ const main = async () => {
 
         // Duration weight held for
         .method('create', 'weightHeld', (vaporous, { field }) => {
-            vaporous
+            return vaporous
                 .checkpoint('retrieve', 'mainDataSeries')
                 .bin(field + '_kgf', 2)
                 .stats(new Aggregation('timeHeld', 'sum', 'timeHeld'), new By('daysAgo'), new By(field + '_kgf'))
@@ -122,11 +118,11 @@ const main = async () => {
 
         // Weight by phase
         .method('create', 'weightByPhase', (vaporous, { field }) => {
-            vaporous
+            return vaporous
                 .checkpoint('retrieve', 'mainDataSeries')
                 .stats(new Aggregation(field + '_kgf', 'max', field + '_kgf'), new By('phase'), new By('daysAgo'))
                 .toGraph('phase', field + '_kgf', 'daysAgo')
-                .build('Power at location - ' + field.toUpperCase(), 'LineChart', {
+                .build('Power at location - ' + field.toUpperCase(), 'Line', {
                     tab: 'Instant',
                     columns: 2
                 })
@@ -157,13 +153,13 @@ const main = async () => {
 
         .checkpoint('retrieve', 'mainDataSeries')
         .method('create', 'weightByLocation', (vaporous, { field }) => {
-            vaporous
+            return vaporous
                 .checkpoint('retrieve', 'mainDataSeries')
                 .filter(event => event.phase < 5)
                 .bin(field + "_cm", 2)
                 .stats(new Aggregation(field + '_kgf', 'median', field + '_kgf'), new By(field + "_cm"), new By('phase'), new By('daysAgo'))
                 .toGraph(field + "_cm", field + '_kgf', 'phase', 'daysAgo')
-                .build('Power over rep - ' + field.toUpperCase(), 'LineChart', {
+                .build('Power over rep - ' + field.toUpperCase(), 'Line', {
                     tab: 'Power over rep',
                     columns: 2,
                     sortX: 'asc'
@@ -172,6 +168,7 @@ const main = async () => {
         .method('retrieve', 'weightByLocation', { field: 'left' })
         .method('retrieve', 'weightByLocation', { field: 'right' })
         .render('gym.html')
+        .begin()
 
 }
 

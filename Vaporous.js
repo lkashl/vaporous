@@ -4,13 +4,17 @@ const By = require('./types/By');
 const Aggregation = require('./types/Aggregation');
 const Window = require('./types/Window')
 
-// Import mixins
-const utilsMixin = require('./src/utils');
-const transformationsMixin = require('./src/transformations');
-const fileOperationsMixin = require('./src/fileOperations');
-const statisticsMixin = require('./src/statistics');
-const checkpointsMixin = require('./src/checkpoints');
-const visualizationMixin = require('./src/visualization');
+// Import mixin implementations
+const core = require('./src/core');
+const utils = require('./src/utils');
+const transformations = require('./src/transformations');
+const fileOperations = require('./src/fileOperations');
+const statistics = require('./src/statistics');
+const checkpoints = require('./src/checkpoints');
+const visualization = require('./src/visualization');
+const http = require('./src/http')
+const processing = require('./src/processing')
+const path = require('path')
 
 class Vaporous {
 
@@ -28,83 +32,484 @@ class Vaporous {
         this.loggers = loggers
         this.perf = null
         this.totalTime = 0
-    }
 
-    manageEntry() {
-        if (this.loggers?.perf) {
-            const [, , method, ...origination] = new Error().stack.split('\n')
-            const invokedMethod = method.match(/Vaporous.(.+?) /)
+        this.intervals = []
+        this.processingQueue = []
 
-            let orig = origination.find(orig => {
-                const originator = orig.split("/").at(-1)
-                return !originator.includes("Vaporous")
-            })
+        this._isExecuting = false
 
-            orig = orig.split("/").at(-1)
-            const logLine = "(" + orig + " BEGIN " + invokedMethod[1]
-            this.loggers.perf('info', logLine)
-            this.perf = { time: new Date().valueOf(), logLine }
-        }
-    }
+        // Return a proxy that intercepts method calls
+        const proxy = new Proxy(this, {
+            get(target, prop, receiver) {
 
-    manageExit() {
-        if (this.loggers?.perf) {
-            let { logLine, time } = this.perf;
-            const executionTime = new Date() - time
-            this.totalTime += executionTime
+                // If this is not a function then return actual value
+                if (typeof target[prop] !== 'function') return target[prop];
 
-            const match = logLine.match(/^.*?BEGIN/);
-            const prepend = "END"
-            if (match) {
-                const toReplace = match[0]; // the matched substring
-                const spaces = " ".repeat(toReplace.length - prepend.length); // same length, all spaces
-                logLine = spaces + prepend + logLine.replace(toReplace, "");
+                const value = target[prop]
+
+                // If it's a function  we should queue it
+                if (typeof value === 'function'
+                    && !target._isExecuting
+                    && target._shouldQueue(prop)) {
+                    return function (...args) {
+                        let err = {}
+                        Error.captureStackTrace(err, proxy);
+                        err = err.stack.split('\n')[2]
+                        err = path.parse(err).base.replace(")", "")
+                        target.processingQueue.push([prop, args, { stack: err }])
+                        return receiver  // Return the proxy, not the target!
+                    }
+                }
+
+                return target[prop]
             }
+        })
 
-            this.loggers.perf('info', logLine + " (" + executionTime + "ms)")
-        }
-        return this
+        return proxy;
     }
 
+    _shouldQueue(methodName) {
+        const nonQueueable = ['begin', 'clone', 'serialise', 'destroy', '_shouldQueue', 'valueOf', 'toString']
+        return !nonQueueable.includes(methodName)
+    }
+
+    // ========================================
+    // Core methods
+    // ========================================
+
+    /**
+     * Create, retrieve, or delete saved methods
+     * @param {string} operation - 'create', 'retrieve', or 'delete'
+     * @param {string} name - Method name
+     * @param {*} options - Method options or function
+     * @returns {Vaporous} - Returns this instance for chaining
+     */
     method(operation, name, options) {
-        if (operation != 'retrieve') this.manageEntry()
-        const operations = {
-            create: () => {
-                this.savedMethods[name] = options
-            },
-            retrieve: () => {
-                this.savedMethods[name](this, options)
-            },
-            delete: () => {
-                delete this.savedMethods[name]
-            }
-        }
-
-
-        operations[operation]()
-        if (operation !== 'retrieve') return this.manageExit()
-        return this;
+        return processing.method.call(this, operation, name, options);
     }
 
+    /**
+     * Filter events using a predicate function
+     * @param {...*} args - Arguments to pass to Array.filter
+     * @returns {Vaporous} - Returns this instance for chaining
+     */
     filter(...args) {
-        this.manageEntry()
-        this.events = this.events.filter(...args)
-        return this.manageExit()
+        return core.filter.call(this, ...args);
     }
 
+    /**
+     * Append new entities to events
+     * @param {Array} entities - Array of entities to append
+     * @returns {Vaporous} - Returns this instance for chaining
+     */
     append(entities) {
-        this.manageEntry()
-        this.events = this.events.concat(entities)
-        return this.manageExit()
+        return core.append.call(this, entities);
+    }
+
+    /**
+     * Execute all queued operations
+     * @param {string} [stageName] - Optional stage name for logging
+     * @returns {Promise<Vaporous>} - Returns this instance for chaining
+     */
+    begin(stageName) {
+        return core.begin.call(this, stageName);
+    }
+
+    /**
+     * Serialize the Vaporous instance to a plain object
+     * @returns {Object} - Serialized instance data
+     */
+    serialise({ } = {}) {
+        return core.serialise.call(this);
+    }
+
+    /**
+     * Clone the Vaporous instance
+     * @param {Object} [options] - Clone options
+     * @param {boolean} [options.deep] - Whether to perform a deep clone
+     * @returns {Vaporous} - Returns cloned instance
+     */
+    clone({ deep } = {}) {
+        return core.clone.call(this, { deep });
+    }
+
+    /**
+     * Destroy the Vaporous instance and clean up resources
+     * @returns {Vaporous} - Returns this instance for chaining
+     */
+    destroy() {
+        return core.destroy.call(this);
+    }
+
+    // ========================================
+    // Utils methods
+    // ========================================
+
+    /**
+     * Sort events by specified keys
+     * @param {string} order - 'asc' or 'dsc'
+     * @param {...string} keys - Keys to sort by
+     * @returns {Vaporous} - Returns this instance for chaining
+     */
+    sort(order, ...keys) {
+        return utils.sort.call(this, order, ...keys);
+    }
+
+    /**
+     * Assert conditions on each event
+     * @param {Function} funct - Function that receives (event, index, {expect}) and performs assertions
+     * @returns {Vaporous} - Returns this instance for chaining
+     */
+    assert(funct) {
+        return utils.assert.call(this, funct);
+    }
+
+    // ========================================
+    // Transformation methods
+    // ========================================
+
+    /**
+     * Evaluate and modify each event
+     * @param {Function} modifier - Function that receives an event and returns modifications to apply
+     * @param {boolean} [discard] - Whether to discard the event if modifier returns falsy
+     * @returns {Vaporous} - Returns this instance for chaining
+     */
+    eval(modifier, discard) {
+        return transformations.eval.call(this, modifier, discard);
+    }
+
+    /**
+     * Internal table transformation helper
+     * @private
+     */
+    _table(modifier) {
+        return transformations._table.call(this, modifier);
+    }
+
+    /**
+     * Transform events into a table format
+     * @param {Function} modifier - Function that receives an event and returns the transformed row
+     * @returns {Vaporous} - Returns this instance for chaining
+     */
+    table(modifier) {
+        return transformations.table.call(this, modifier);
+    }
+
+    /**
+     * Rename fields in events
+     * @param {...Array} entities - Arrays of [from, to] field name pairs
+     * @returns {Vaporous} - Returns this instance for chaining
+     */
+    rename(...entities) {
+        return transformations.rename.call(this, ...entities);
+    }
+
+    /**
+     * Parse time fields into timestamps
+     * @param {string} value - Field name containing time value
+     * @param {string} [customFormat] - Optional custom time format
+     * @returns {Vaporous} - Returns this instance for chaining
+     */
+    parseTime(value, customFormat) {
+        return transformations.parseTime.call(this, value, customFormat);
+    }
+
+    /**
+     * Bin numeric values into intervals
+     * @param {string} value - Field name to bin
+     * @param {number} span - Bin size
+     * @returns {Vaporous} - Returns this instance for chaining
+     */
+    bin(value, span) {
+        return transformations.bin.call(this, value, span);
+    }
+
+    /**
+     * Flatten nested arrays in events
+     * @param {number} [depth=1] - Depth to flatten
+     * @returns {Vaporous} - Returns this instance for chaining
+     */
+    flatten(depth = 1) {
+        return transformations.flatten.call(this, depth);
+    }
+
+    /**
+     * Expand array field into multiple events
+     * @param {string} target - Field name containing array to expand
+     * @returns {Vaporous} - Returns this instance for chaining
+     */
+    mvexpand(target) {
+        return transformations.mvexpand.call(this, target);
+    }
+
+    // ========================================
+    // File operations methods
+    // ========================================
+
+    /**
+     * Internal file scan helper
+     * @private
+     */
+    _fileScan(directory) {
+        return fileOperations._fileScan.call(this, directory);
+    }
+
+    /**
+     * Internal file load helper
+     * @private
+     */
+    _fileLoad(events, delim, parser) {
+        return fileOperations._fileLoad.call(this, events, delim, parser);
+    }
+
+    /**
+     * Scan a directory for files
+     * @param {string} directory - Directory path to scan
+     * @returns {Vaporous} - Returns this instance for chaining
+     */
+    fileScan(directory) {
+        return fileOperations.fileScan.call(this, directory);
+    }
+
+    /**
+     * Load CSV files
+     * @param {Function} parser - Parser function for CSV rows
+     * @returns {Vaporous} - Returns this instance for chaining
+     */
+    csvLoad(parser) {
+        return fileOperations.csvLoad.call(this, parser);
+    }
+
+    /**
+     * Load files with custom delimiter and parser
+     * @param {string} delim - Delimiter for splitting file content
+     * @param {Function} parser - Parser function for lines
+     * @returns {Vaporous} - Returns this instance for chaining
+     */
+    fileLoad(delim, parser) {
+        return fileOperations.fileLoad.call(this, delim, parser);
+    }
+
+    /**
+     * Write events to file
+     * @param {string} title - File name to write to
+     * @returns {Vaporous} - Returns this instance for chaining
+     */
+    writeFile(title) {
+        return fileOperations.writeFile.call(this, title);
+    }
+
+    /**
+     * Output events to console or file
+     * @param {...string} [args] - Optional field names to output
+     * @returns {Vaporous} - Returns this instance for chaining
+     */
+    output(...args) {
+        return fileOperations.output.call(this, ...args);
+    }
+
+    // ========================================
+    // Statistics methods
+    // ========================================
+
+    /**
+     * Internal statistics calculation helper
+     * @private
+     */
+    _stats(args, events) {
+        return statistics._stats.call(this, args, events);
+    }
+
+    /**
+     * Calculate statistics with aggregations
+     * @param {...(Aggregation|By)} args - Aggregation and By objects for statistical operations
+     * @returns {Vaporous} - Returns this instance for chaining
+     */
+    stats(...args) {
+        return statistics.stats.call(this, ...args);
+    }
+
+    /**
+     * Add statistics to each event based on grouping
+     * @param {...(Aggregation|By)} args - Aggregation and By objects for statistical operations
+     * @returns {Vaporous} - Returns this instance for chaining
+     */
+    eventstats(...args) {
+        return statistics.eventstats.call(this, ...args);
+    }
+
+    /**
+     * Internal streaming statistics helper
+     * @private
+     */
+    _streamstats(...args) {
+        return statistics._streamstats.call(this, ...args);
+    }
+
+    /**
+     * Calculate cumulative statistics over a window
+     * @param {...(Aggregation|By|Window)} args - Aggregation, By, and Window objects
+     * @returns {Vaporous} - Returns this instance for chaining
+     */
+    streamstats(...args) {
+        return statistics.streamstats.call(this, ...args);
+    }
+
+    /**
+     * Calculate delta (range) between consecutive values
+     * @param {string} field - Field to calculate delta for
+     * @param {string} remapField - Output field name
+     * @param {...By} bys - Optional By objects for grouping
+     * @returns {Vaporous} - Returns this instance for chaining
+     */
+    delta(field, remapField, ...bys) {
+        return statistics.delta.call(this, field, remapField, ...bys);
+    }
+
+    // ========================================
+    // Checkpoint methods
+    // ========================================
+
+    /**
+     * Internal checkpoint operation helper
+     * @private
+     */
+    _checkpoint(operation, name, data, options) {
+        return checkpoints._checkpoint.call(this, operation, name, data, options);
+    }
+
+    /**
+     * Create, retrieve, or delete checkpoints
+     * @param {string} operation - 'create', 'retrieve', or 'delete'
+     * @param {string} name - Checkpoint name
+     * @param {Object} [options] - Optional configuration
+     * @returns {Vaporous} - Returns this instance for chaining
+     */
+    checkpoint(operation, name, options) {
+        return checkpoints.checkpoint.call(this, operation, name, options);
+    }
+
+    /**
+     * Filter events into a checkpoint
+     * @param {string} checkpointName - Name for the checkpoint
+     * @param {Function} funct - Filter function
+     * @param {Object} [options] - Optional configuration
+     * @returns {Vaporous} - Returns this instance for chaining
+     */
+    filterIntoCheckpoint(checkpointName, funct, options) {
+        return checkpoints.filterIntoCheckpoint.call(this, checkpointName, funct, options);
+    }
+
+    /**
+     * Store or retrieve checkpoints from disk
+     * @param {string} operation - 'create' or 'retrieve'
+     * @param {string} name - Checkpoint name
+     * @param {string} partitionBy - Field to partition by
+     * @returns {Vaporous} - Returns this instance for chaining
+     */
+    storedCheckpoint(operation, name, partitionBy) {
+        return checkpoints.storedCheckpoint.call(this, operation, name, partitionBy);
+    }
+
+    // ========================================
+    // Visualization methods
+    // ========================================
+
+    /**
+     * Prepare data for graph visualization
+     * @param {...string} keys - Keys to use for graph data
+     * @returns {Vaporous} - Returns this instance for chaining
+     */
+    toGraph(...keys) {
+        return visualization.toGraph.call(this, ...keys);
+    }
+
+    /**
+     * Build visualization with specified configuration
+     * @param {string} title - Visualization title
+     * @param {string} type - Visualization type
+     * @param {Object} [options] - Optional configuration
+     * @returns {Vaporous} - Returns this instance for chaining
+     */
+    build(title, type, options) {
+        return visualization.build.call(this, title, type, options);
+    }
+
+    /**
+     * Render visualizations
+     * @param {string} location - Location to render visualizations
+     * @param {Object} [options] - Optional render options
+     * @returns {Vaporous} - Returns this instance for chaining
+     */
+    render(location, options) {
+        return visualization.render.call(this, location, options);
+    }
+
+    // ========================================
+    // HTTP methods
+    // ========================================
+
+    /**
+     * Load data from HTTP requests
+     * @param {Object} [options] - Optional HTTP configuration
+     * @returns {Vaporous} - Returns this instance for chaining
+     */
+    load_http(options) {
+        return http.load_http.call(this, options);
+    }
+
+    // ========================================
+    // Processing methods
+    // ========================================
+
+    /**
+     * Process events at regular intervals
+     * @param {Function} callback - Function to call on each interval
+     * @param {number} ms - Interval in milliseconds
+     * @returns {Vaporous} - Returns this instance for chaining
+     */
+    interval(callback, ms) {
+        return processing.interval.call(this, callback, ms);
+    }
+
+    /**
+     * Process events in parallel
+     * @param {number} concurrency - Number of parallel operations
+     * @param {Function} callback - Function to execute for each batch
+     * @param {Object} [options] - Optional configuration
+     * @returns {Vaporous} - Returns this instance for chaining
+     */
+    parallel(concurrency, callback, options) {
+        return processing.parallel.call(this, concurrency, callback, options);
+    }
+
+    /**
+     * Recursively process events
+     * @param {Function} callback - Function to execute recursively
+     * @returns {Vaporous} - Returns this instance for chaining
+     */
+    recurse(callback) {
+        return processing.recurse.call(this, callback);
+    }
+
+    /**
+     * Debug events by executing a callback
+     * @param {Function} callback - Debug callback function
+     * @returns {Vaporous} - Returns this instance for chaining
+     */
+    debug(callback) {
+        return core.debug.call(this, callback);
+    }
+
+    /**
+     * Conditionally execute a callback
+     * @param {Function|boolean} condition - Condition to evaluate or boolean value
+     * @param {Function} callback - Function to execute if condition is true
+     * @returns {Vaporous} - Returns this instance for chaining
+     */
+    doIf(condition, callback) {
+        return processing.doIf.call(this, condition, callback);
     }
 }
-
-// Apply mixins to Vaporous prototype
-Object.assign(Vaporous.prototype, utilsMixin);
-Object.assign(Vaporous.prototype, transformationsMixin);
-Object.assign(Vaporous.prototype, fileOperationsMixin);
-Object.assign(Vaporous.prototype, statisticsMixin);
-Object.assign(Vaporous.prototype, checkpointsMixin);
-Object.assign(Vaporous.prototype, visualizationMixin);
 
 module.exports = { Vaporous, Aggregation, By, Window }

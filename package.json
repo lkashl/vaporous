@@ -1,6 +1,6 @@
 {
   "name": "vaporous",
-  "version": "0.0.8",
+  "version": "0.0.11",
   "description": "Transition data to different structured states for analytical processing",
   "main": "Vaporous.js",
   "scripts": {
@@ -10,6 +10,8 @@
   "license": "ISC",
   "dependencies": {
     "dayjs": "^1.11.18",
+    "http-proxy-agent": "^7.0.2",
+    "https-proxy-agent": "^7.0.6",
     "papaparse": "^5.5.3",
     "split2": "^4.2.0"
   }
