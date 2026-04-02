@@ -41,7 +41,9 @@ module.exports = {
                 const reference = map[key]._statsRaw[aggregation.field]
 
                 if (aggregation.sortable) {
-                    sortedCache[aggregation.field] = reference.slice().sort((a, b) => a - b)
+                    if (sortedCache[aggregation.field] === undefined) {
+                        sortedCache[aggregation.field] = reference.slice().sort((a, b) => a - b)
+                    }
                     result[outputField] = aggregation.calculate(sortedCache[aggregation.field])
                 } else {
                     result[outputField] = aggregation.calculate(reference)

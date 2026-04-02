@@ -60,27 +60,28 @@ module.exports = {
         return this;
     },
 
-    mvexpand(target) {
+    mvexpand(targets) {
 
         const arr = []
         this.events.forEach(event => {
             if (event instanceof Array) {
-                if (!!target) throw new Error('Cannot mvexpand an array to a target')
+                if (targets.length !== 0) throw new Error('Cannot mvexpand on a target value when source data is array')
+
                 event.forEach((item, i) => {
-                    item.i = i
+                    item._mvExpand = i
                     arr.push(item)
                 })
             } else {
+                // Identify max iterations
+                const max = targets.reduce((prev, curr) => Math.max(prev, event[curr].length, 0))
 
-
-                if (!event[target]) return arr.push(event)
-                event[target].forEach((item, i) => {
-                    arr.push({
-                        ...event,
-                        [target]: item,
-                        [`_mvExpand_${target}`]: i
+                for (let i = 0; i < max; i++) {
+                    const obj = { ...event, _mvExpand: i }
+                    targets.forEach(target => {
+                        obj[target] = event[target][i]
                     })
-                })
+                    arr.push(obj)
+                }
             }
         })
 
