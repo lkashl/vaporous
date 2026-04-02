@@ -372,12 +372,14 @@ module.exports = {
         return this;
     },
 
-    render(location = './Vaporous_generation.html', { tabOrder } = {}) {
+    render(location = './Vaporous_generation.html', options = {}) {
 
 
         const classSafe = (name) => name.replace(/[^a-zA-Z0-9]/g, "_")
 
-        if (tabOrder) this.tabs = tabOrder
+        if (typeof options === 'function') options = options()
+
+        if (options.tabOrder) this.tabs = options.tabOrder
 
         const createElement = (name, type, visualisationOptions, eventData, { trellis, trellisName = "", columnDefinitions }) => {
 

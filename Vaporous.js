@@ -238,8 +238,8 @@ class Vaporous {
      * @param {string} target - Field name containing array to expand
      * @returns {Vaporous} - Returns this instance for chaining
      */
-    mvexpand(target) {
-        return transformations.mvexpand.call(this, target);
+    mvexpand(...targets) {
+        return transformations.mvexpand.call(this, targets);
     }
 
     // ========================================

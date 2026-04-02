@@ -31,8 +31,9 @@ async function parallel(target, { multiThread = false } = {}, callbackPath) {
         const instance = new Vaporous({ loggers })
         instance.events = thisEvent
 
-        const task = await funct(instance)
-        tasks.push(task.begin())
+        const task = funct(instance).begin()
+        tasks.push(task)
+        await task
 
         await processSingleThread()
     }
@@ -135,9 +136,11 @@ async function recurse(funct) {
     for (let event of this.events) {
         const target = new Vaporous({ loggers: this.loggers })
         target.events = [event]
+        event._recursion = true
 
         const localRecursion = async (target) => {
-            const val = await funct(target)
+            const executionChain = funct(target)
+            const val = await executionChain.begin()
             if (val.events[0]._recursion) return localRecursion(target)
             return val
         }
@@ -155,7 +158,7 @@ async function doIf(condition, callback) {
     if (proceed) {
         const clone = this.clone()
         const task = await callback(clone)
-        task.begin()
+        await task.begin()
         this.events = clone.events
     }
     return this;

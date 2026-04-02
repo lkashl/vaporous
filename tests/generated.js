@@ -264,7 +264,7 @@ const main = async () => {
         .mvexpand('tags')
         .assert((event, i, { expect }) => {
             expect(typeof event.tags === 'string')
-            expect(event._mvExpand_tags !== undefined)
+            expect(event._mvExpand !== undefined)
             expect(event.id !== undefined)
             expect(event.value !== undefined)
         })
