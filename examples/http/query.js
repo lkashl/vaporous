@@ -18,7 +18,7 @@ const main = async () => {
             return { users: users.users }
         })
         .mvexpand('users')
-        .filter(event => event._mvExpand_users < 10)
+        .filter(event => event._mvExpand < 10)
         .table(event => ({
             username: event.users.username,
             password: event.users.password

@@ -71,9 +71,9 @@ const main = async () => {
         .bin('seconds', 1)
         .mvexpand('temps')
         .stats(new Aggregation('temps', 'max', 'maxTemp'),
-            new By('seconds'), new By('daysAgo'), new By('_mvExpand_temps')
+            new By('seconds'), new By('daysAgo'), new By('_mvExpand')
         )
-        .toGraph('seconds', 'maxTemp', 'daysAgo', '_mvExpand_temps')
+        .toGraph('seconds', 'maxTemp', 'daysAgo', '_mvExpand')
         .build('Temp sensor - ', 'Line', {
             columns: 3,
             tab: "Machine Diagnostics"

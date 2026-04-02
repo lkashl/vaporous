@@ -372,7 +372,7 @@ module.exports = {
         return this;
     },
 
-    render(location = './Vaporous_generation.html', options) {
+    render(location = './Vaporous_generation.html', options = {}) {
 
 
         const classSafe = (name) => name.replace(/[^a-zA-Z0-9]/g, "_")
