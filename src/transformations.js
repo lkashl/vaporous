@@ -73,7 +73,7 @@ module.exports = {
                 })
             } else {
                 // Identify max iterations
-                const max = targets.reduce((prev, curr) => Math.max(prev, event[curr].length, 0))
+                const max = targets.reduce((prev, curr) => Math.max(prev, event[curr].length), 0)
 
                 for (let i = 0; i < max; i++) {
                     const obj = { ...event, _mvExpand: i }

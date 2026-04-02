@@ -32,17 +32,17 @@ const request = async ({ uri, method, headers, body, options = {} }) => {
             res.on('end', () => {
                 resolve({ body, statusCode: res.statusCode, headers: res.headers })
             })
-
-            if (body) req.write(body)
-            req.end()
         })
+
+        if (body) req.write(body)
+        req.end()
     })
 
     if (response.statusCode === 307) {
         return request({ uri: response.headers.location, method, headers, body, options })
     }
 
-    return response
+    return response;
 }
 
 async function load_http() {
